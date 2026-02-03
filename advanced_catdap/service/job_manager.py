@@ -17,6 +17,7 @@ class JobManager:
     def __init__(self, data_dir: str = "data"):
         self.data_dir = Path(data_dir)
         self.jobs_dir = self.data_dir / "jobs"
+        self.jobs_dir.mkdir(parents=True, exist_ok=True)
     
     def submit_job(self, dataset_id: str, params: AnalysisParams) -> str:
         # Create deterministic Job ID based on inputs (Caching)
