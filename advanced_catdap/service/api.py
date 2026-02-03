@@ -4,7 +4,9 @@ from typing import List, Optional
 import shutil
 import os
 import tempfile
+import tempfile
 from pathlib import Path
+import pandas as pd
 
 from advanced_catdap.service.dataset_manager import DatasetManager
 from advanced_catdap.service.job_manager import JobManager
@@ -81,6 +83,8 @@ def get_dataset_metadata(dataset_id: str):
 def get_dataset_preview(dataset_id: str, rows: int = 100):
     try:
         df = dataset_manager.get_preview(dataset_id, n_rows=rows)
+        # Handle NaN -> None for valid JSON (Robust)
+        df = df.astype(object).where(pd.notnull(df), None)
         # Convert to dict for JSON
         return df.to_dict(orient="records")
     except FileNotFoundError:
@@ -90,6 +94,7 @@ def get_dataset_preview(dataset_id: str, rows: int = 100):
 def get_dataset_sample(dataset_id: str, rows: int = 1000):
     try:
         df = dataset_manager.get_sample(dataset_id, n_rows=rows)
+        df = df.astype(object).where(pd.notnull(df), None)
         return df.to_dict(orient="records")
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Dataset not found")

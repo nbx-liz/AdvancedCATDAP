@@ -1,6 +1,7 @@
 import subprocess
 import json
 import uuid
+import hashlib
 import sys
 import logging
 from pathlib import Path
@@ -16,16 +17,26 @@ class JobManager:
     def __init__(self, data_dir: str = "data"):
         self.data_dir = Path(data_dir)
         self.jobs_dir = self.data_dir / "jobs"
-        self.jobs_dir.mkdir(parents=True, exist_ok=True)
     
     def submit_job(self, dataset_id: str, params: AnalysisParams) -> str:
-        job_id = str(uuid.uuid4())
+        # Create deterministic Job ID based on inputs (Caching)
+        # Sort keys to ensure consistent order
+        params_json = json.dumps(params.model_dump(), sort_keys=True)
+        key_str = f"{dataset_id}|{params_json}"
+        job_id = hashlib.md5(key_str.encode('utf-8')).hexdigest()
+        
+        # Check if job already exists
+        existing_status = self.get_job_status(job_id)
+        if existing_status["status"] in ["PENDING", "RUNNING", "PROGRESS", "SUCCESS"]:
+            logger.info(f"Job {job_id} already exists with status {existing_status['status']}. Returning cached result.")
+            return job_id
+        
+        # If UNKNOWN (doesn't exist) or FAILURE, we submit a new run
+        logger.info(f"Submitting new local job {job_id} (Status: {existing_status['status']})")
         
         # We invoke the local_worker.py script
         # Using sys.executable to ensure we use the same python env
         script_path = Path(__file__).parent / "local_worker.py"
-        
-        params_json = json.dumps(params.model_dump())
         
         cmd = [
             sys.executable,
@@ -42,8 +53,6 @@ class JobManager:
         with open(log_file, "w") as f:
             subprocess.Popen(cmd, stdout=f, stderr=f)
             
-        logger.info(f"Submitted local job {job_id}")
-        
         # Create initial PENDING status file immediately so API doesn't 404
         self._write_initial_status(job_id)
         

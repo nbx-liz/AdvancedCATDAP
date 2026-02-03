@@ -67,7 +67,12 @@ def run_worker(job_id: str, dataset_id: str, params_json: str, data_dir: str):
             path = dataset_manager.storage_dir / f"{dataset_id}.parquet"
             if not path.exists():
                 raise FileNotFoundError(f"Dataset {dataset_id} not found")
-            df = dataset_manager.con.execute(f"SELECT * FROM '{path}'").df()
+            
+            con = dataset_manager._get_connection()
+            try:
+                df = con.execute(f"SELECT * FROM '{path}'").df()
+            finally:
+                con.close()
 
         # Callback
         def progress_tracker(stage, data):
@@ -76,9 +81,12 @@ def run_worker(job_id: str, dataset_id: str, params_json: str, data_dir: str):
 
         # Run
         result = analyzer.run_analysis(df, params, progress_cb=progress_tracker)
+        
+        from advanced_catdap.service.utils import sanitize_for_json
+        clean_result = sanitize_for_json(result.model_dump())
 
         # Success
-        update_status(job_file, "SUCCESS", result=result.model_dump())
+        update_status(job_file, "SUCCESS", result=clean_result)
         print("Job successful")
 
     except Exception as e:

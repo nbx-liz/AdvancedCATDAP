@@ -128,12 +128,12 @@ with tab3:
             if fi_data:
                 df_fi = pd.DataFrame(fi_data)
                 fig_bar = px.bar(
-                    df_fi.sort_values("Delta_Score", ascending=True).head(st.session_state.dataset_meta.n_columns), # Sort for bar chart
-                    x="Delta_Score",
-                    y="Feature",
+                    df_fi.sort_values("delta_score", ascending=True).head(st.session_state.dataset_meta.n_columns), # Sort for bar chart
+                    x="delta_score",
+                    y="feature",
                     orientation='h',
                     title="Feature Importance (Delta AIC)",
-                    color="Delta_Score"
+                    color="delta_score"
                 )
                 st.plotly_chart(fig_bar, use_container_width=True)
             else:
@@ -145,11 +145,11 @@ with tab3:
             if ii_data:
                 df_ii = pd.DataFrame(ii_data)
                 # Create matrix for heatmap
-                features = list(set(df_ii["Feature_1"]).union(set(df_ii["Feature_2"])))
+                features = list(set(df_ii["feature_1"]).union(set(df_ii["feature_2"])))
                 if features:
                     # Plotly Heatmap
                     # Construct pivot
-                    pivot = df_ii.pivot(index="Feature_1", columns="Feature_2", values="Gain")
+                    pivot = df_ii.pivot(index="feature_1", columns="feature_2", values="gain")
                     # Symmetrize roughly
                     # Better: scatter plot of interactions or just the list since matrix is sparse
                     
@@ -158,9 +158,9 @@ with tab3:
                     # Basic heatmap of raw gain values
                     fig_heat = px.density_heatmap(
                         df_ii, 
-                        x="Feature_1", 
-                        y="Feature_2", 
-                        z="Gain", 
+                        x="feature_1", 
+                        y="feature_2", 
+                        z="gain", 
                         title="Interaction Gain Heatmap",
                         nbinsx=len(features),
                         nbinsy=len(features)
