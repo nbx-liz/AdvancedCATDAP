@@ -157,6 +157,9 @@ cython_debug/
 *.pt
 *.pth
 
-# OS specific files
-.DS_Store
-Thumbs.db
+
+# Data
+*.csv
+*.parquet
+data/
+demo_data.csv

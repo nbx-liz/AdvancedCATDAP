@@ -17,10 +17,9 @@ setup(
         "duckdb>=1.0.0",
         "fastapi>=0.100.0",
         "uvicorn>=0.20.0",
-        "celery>=5.0.0",
-        "redis>=4.0.0",
+        "fastapi>=0.100.0",
+        "uvicorn>=0.20.0",
         "python-multipart",
-        "eventlet",
         "streamlit>=1.25.0",
         "plotly"
     ],
