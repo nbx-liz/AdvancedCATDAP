@@ -52,7 +52,16 @@ class AdvancedCATDAP(BaseEstimator, TransformerMixin):
         self.top_k = top_k
         self.delta_threshold = delta_threshold
         
+        self.progress_cb = None
+
         self._reset_state()
+
+    def set_progress_callback(self, cb: Callable[[str, Dict[str, Any]], None]):
+        self.progress_cb = cb
+
+    def _notify_progress(self, stage: str, data: Dict[str, Any]):
+        if self.progress_cb:
+            self.progress_cb(stage, data)
 
     def _reset_state(self):
         self.mode = None
@@ -128,10 +137,14 @@ class AdvancedCATDAP(BaseEstimator, TransformerMixin):
         
         force_cats_set = set(force_categoricals) if force_categoricals else set()
 
+        self._notify_progress("prepare_data", {"n_rows": n_total, "n_columns": len(cols_needed)})
+
         # --- 2. Task Detection ---
         self.mode = self._detect_task_type(df_clean[target_col_name])
         if self.verbose:
             print(f"--- Mode: {self.mode.upper()} | Target: '{target_col_name}' | N: {n_total} ---")
+        
+        self._notify_progress("task_detected", {"mode": self.mode, "target": target_col_name})
 
         target_sq = None
         target_int = None
@@ -154,6 +167,8 @@ class AdvancedCATDAP(BaseEstimator, TransformerMixin):
 
         if self.verbose: print(f"Baseline Score: {self.baseline_score:.2f}")
 
+        self._notify_progress("baseline_calculated", {"score": self.baseline_score})
+
         # --- 3. Univariate Analysis ---
         uni_results = []
         processed_codes = {} 
@@ -163,8 +178,10 @@ class AdvancedCATDAP(BaseEstimator, TransformerMixin):
         min_samples = int(n_total * self.min_samples_leaf_rate)
         min_samples = max(5, min(min_samples, self.max_leaf_samples))
 
-        for feature in candidates:
+        for i, feature in enumerate(candidates):
             if feature not in df_clean.columns: continue
+            
+            self._notify_progress("univariate_progress", {"current": i + 1, "total": len(candidates), "feature": feature})
             
             is_forced_cat = feature in force_cats_set
             
@@ -205,6 +222,8 @@ class AdvancedCATDAP(BaseEstimator, TransformerMixin):
         # --- 5. Interaction Search ---
         self._search_interactions(selected, processed_codes, processed_r, sample_indices, 
                                   target_values, target_sq, target_int, n_classes, n_total)
+        
+        self._notify_progress("done", {"top_features": selected})
 
         # --- 6. Feature Details ---
         t_stats = target_values if self.mode == 'regression' else target_int

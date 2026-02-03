@@ -11,7 +11,8 @@ setup(
         "numpy",
         "scikit-learn",
         "matplotlib",
-        "seaborn"
+        "seaborn",
+        "pydantic>=2.0"
     ],
     python_requires=">=3.7",
 )
