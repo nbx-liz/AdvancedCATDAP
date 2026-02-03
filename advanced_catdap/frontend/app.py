@@ -128,12 +128,18 @@ with tab3:
             if fi_data:
                 df_fi = pd.DataFrame(fi_data)
                 fig_bar = px.bar(
-                    df_fi.sort_values("delta_score", ascending=True).head(st.session_state.dataset_meta.n_columns), # Sort for bar chart
+                    df_fi.sort_values("delta_score", ascending=True).head(st.session_state.dataset_meta.n_columns),
                     x="delta_score",
                     y="feature",
                     orientation='h',
-                    title="Feature Importance (Delta AIC)",
-                    color="delta_score"
+                    title="<b>Feature Importance</b> (Delta AIC)", # Bold title
+                    color="delta_score",
+                    color_continuous_scale="Viridis", # Premium palette
+                    template="plotly_white" # Clean template
+                )
+                fig_bar.update_layout(
+                    font_family="Inter, sans-serif",
+                    title_font_size=20
                 )
                 st.plotly_chart(fig_bar, use_container_width=True)
             else:
@@ -161,9 +167,15 @@ with tab3:
                         x="feature_1", 
                         y="feature_2", 
                         z="gain", 
-                        title="Interaction Gain Heatmap",
+                        title="<b>Interaction Gain Heatmap</b>",
                         nbinsx=len(features),
-                        nbinsy=len(features)
+                        nbinsy=len(features),
+                        color_continuous_scale="Magma", # Distinct from bar chart
+                        template="plotly_white"
+                    )
+                    fig_heat.update_layout(
+                        font_family="Inter, sans-serif",
+                        title_font_size=20
                     )
                     st.plotly_chart(fig_heat, use_container_width=True)
 

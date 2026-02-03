@@ -19,8 +19,7 @@ def launch():
     
     
     # 2. Worker (Removed: running in local subprocess)
-    # print("Launching Worker...")
-    # subprocess.Popen('start cmd /k "uv run celery -A advanced_catdap.service.worker worker --loglevel=info -P eventlet"', shell=True)
+    
     
     # 3. Frontend
     # streamlit run advanced_catdap/frontend/app.py

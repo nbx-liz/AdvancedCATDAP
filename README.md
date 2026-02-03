@@ -37,10 +37,37 @@ This data-driven approach ensures that features are transformed in a way that ma
 
 
 ## Installation
-
 ```bash
+# Using pip
 pip install .
+
+# Using uv (Recommended for development)
+# This will handle dependencies and environment
+uv sync
 ```
+
+## GUI Application (New)
+
+AdvancedCATDAP now includes a web-based GUI for easy interaction.
+
+### Launching the App
+```bash
+# Using uv (Recommended)
+uv run scripts/launch_gui.py
+
+# Or manually (ensure dependencies are installed)
+# Terminal 1: API
+uvicorn advanced_catdap.service.api:app --reload --port 8000
+# Terminal 2: Streamlit
+streamlit run advanced_catdap/frontend/app.py
+```
+
+### Features
+- **Data Management**: Upload CSV or Parquet files.
+- **Auto-Configuration**: Detects columns and suggests analysis settings.
+- **Interactive Results**: View Feature Importance and Interaction Heatmaps powered by Plotly.
+- **Large Data Support**: Handles datasets up to 1 million rows locally.
+- **Job Caching**: Re-running the same analysis returns instant results.
 
 ## Usage
 
