@@ -11,6 +11,10 @@ dependencies = [
     "scikit-learn>=1.7.2",
     "seaborn>=0.13.2",
     "pydantic>=2.0",
+    "pyarrow>=14.0.0",
+    "duckdb>=1.0.0",
+    "duckdb>=1.0.0",
+    "pyarrow>=14.0.0",
 ]
 
 [dependency-groups]

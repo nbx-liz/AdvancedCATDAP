@@ -12,7 +12,9 @@ setup(
         "scikit-learn",
         "matplotlib",
         "seaborn",
-        "pydantic>=2.0"
+        "pydantic>=2.0",
+        "pyarrow>=14.0.0",
+        "duckdb>=1.0.0"
     ],
     python_requires=">=3.7",
 )

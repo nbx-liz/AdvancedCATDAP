@@ -1,6 +1,23 @@
 from pydantic import BaseModel, Field
 from typing import List, Dict, Optional, Any, Union
 
+from datetime import datetime
+
+class ColumnInfo(BaseModel):
+    name: str
+    dtype: str
+    missing_count: int = 0
+    unique_approx: int = 0
+
+class DatasetMetadata(BaseModel):
+    dataset_id: str
+    filename: str
+    file_path: str
+    n_rows: int
+    n_columns: int
+    columns: List[ColumnInfo] = []
+    created_at: datetime = Field(default_factory=datetime.now)
+
 class FeatureImportance(BaseModel):
     feature: str = Field(..., alias="Feature")
     score: float = Field(..., alias="Score")
