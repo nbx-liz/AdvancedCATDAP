@@ -6,10 +6,10 @@ from sklearn.pipeline import Pipeline
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_squared_error
 
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from advanced_catdap import AdvancedCATDAP
-from advanced_catdap.examples.utils import generate_ltv_data
+from utils import generate_ltv_data
 
 def run_sklearn_demo():
     print("\n=== Sklearn API Demo (Pipeline) ===")

@@ -199,7 +199,7 @@ plot_interaction_heatmap(model.interaction_importances_)
 
 ## Examples
 
-Check the `advanced_catdap/examples/` directory for ready-to-run scripts:
+Check the `examples/` directory for ready-to-run scripts:
 
 - `01_basic_classification.py`: Complete classification workflow.
 - `02_basic_regression.py`: Complete regression workflow.

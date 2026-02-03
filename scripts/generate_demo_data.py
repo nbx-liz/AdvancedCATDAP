@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 from sklearn.datasets import make_classification
 
-def generate_data(output_path="demo.csv", n_samples=10000):
+def generate_data(output_path="data/demo.csv", n_samples=10000):
     print(f"Generating {n_samples} samples (Customer Churn Scenario)...")
     
     # 1. Generate base synthetic data for signal
