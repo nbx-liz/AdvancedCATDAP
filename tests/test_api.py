@@ -23,19 +23,26 @@ def mock_dataset_storage(tmp_path):
         dataset_manager.storage_dir = original_dir
 
 @pytest.fixture
-def mock_celery():
-    with patch("advanced_catdap.service.job_manager.run_analysis_task") as mock_task:
-        mock_res = MagicMock()
-        mock_res.id = "test_job_123"
-        mock_task.delay.return_value = mock_res
-        yield mock_task
+def mock_job_manager():
+    # Mock JobManager internal methods to avoid actual subprocess
+    with patch("advanced_catdap.service.api.job_manager") as mock_mgr:
+        # Mock submit_job to return a fake ID
+        mock_mgr.submit_job.return_value = "test_job_123"
+        
+        # Mock get_job_status to return SUCCESS
+        mock_mgr.get_job_status.return_value = {
+            "job_id": "test_job_123",
+            "status": "SUCCESS",
+            "result": {"feature_importances": []}
+        }
+        yield mock_mgr
 
 def test_read_root():
     response = client.get("/")
     assert response.status_code == 200
     assert response.json() == {"message": "AdvancedCATDAP API is running"}
 
-def test_upload_and_flow(mock_dataset_storage, mock_celery):
+def test_upload_and_flow(mock_dataset_storage, mock_job_manager):
     # 1. Upload
     csv_content = "A,B,target\n1,x,0\n2,y,1\n3,x,0"
     files = {"file": ("test.csv", csv_content, "text/csv")}
@@ -66,14 +73,7 @@ def test_upload_and_flow(mock_dataset_storage, mock_celery):
     job_id = res_job.json()["job_id"]
     assert job_id == "test_job_123"
     
-    # 5. Check Job Status (mocked via JobManager logic which queries Celery)
-    # We need to mock AsyncResult in JobManager.get_job_status
-    with patch("advanced_catdap.service.job_manager.AsyncResult") as mock_res_cls:
-        mock_instance = MagicMock()
-        mock_instance.status = "SUCCESS"
-        mock_instance.info = {"some": "result"}
-        mock_res_cls.return_value = mock_instance
-        
-        res_status = client.get(f"/jobs/{job_id}")
-        assert res_status.status_code == 200
-        assert res_status.json()["status"] == "SUCCESS"
+    # 5. Check Job Status (Mocked)
+    res_status = client.get(f"/jobs/{job_id}")
+    assert res_status.status_code == 200
+    assert res_status.json()["status"] == "SUCCESS"
