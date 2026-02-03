@@ -13,13 +13,13 @@ def plot_importance(results, top_k=20, figsize=(10, 6)):
 
     df_plot = results.sort_values('Delta_Score', ascending=False).head(top_k)
     
-    plt.figure(figsize=figsize)
+    fig = plt.figure(figsize=figsize)
     sns.barplot(data=df_plot, x='Delta_Score', y='Feature', hue='Feature', palette='viridis', legend=False)
     plt.title(f'Top {top_k} Variable Importance (Delta AIC)')
     plt.xlabel('Delta Score (Higher is better)')
     plt.ylabel('Feature')
     plt.tight_layout()
-    plt.show()
+    return fig
 
 def plot_interaction_heatmap(combo_results, top_k=20, figsize=(10, 8)):
     """
@@ -41,8 +41,8 @@ def plot_interaction_heatmap(combo_results, top_k=20, figsize=(10, 8)):
         matrix.loc[f1, f2] = gain
         matrix.loc[f2, f1] = gain
         
-    plt.figure(figsize=figsize)
+    fig = plt.figure(figsize=figsize)
     sns.heatmap(matrix, cmap='coolwarm', annot=True, fmt=".2f", center=0)
     plt.title(f'Top Interaction Gains')
     plt.tight_layout()
-    plt.show()
+    return fig

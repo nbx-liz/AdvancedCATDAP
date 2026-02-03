@@ -11,7 +11,17 @@ setup(
         "numpy",
         "scikit-learn",
         "matplotlib",
-        "seaborn"
+        "seaborn",
+        "pydantic>=2.0",
+        "pyarrow>=14.0.0",
+        "duckdb>=1.0.0",
+        "fastapi>=0.100.0",
+        "uvicorn>=0.20.0",
+        "fastapi>=0.100.0",
+        "uvicorn>=0.20.0",
+        "python-multipart",
+        "streamlit>=1.25.0",
+        "plotly"
     ],
     python_requires=">=3.7",
 )

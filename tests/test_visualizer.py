@@ -29,8 +29,9 @@ def test_plot_importance_realistic(analysis_results):
     """Test plot_importance with real analysis results."""
     results, _ = analysis_results
     try:
-        plot_importance(results, top_k=5)
-        plt.close()
+        fig = plot_importance(results, top_k=5)
+        assert fig is not None, "plot_importance should return a Figure"
+        plt.close(fig)
     except Exception as e:
         pytest.fail(f"plot_importance raised exception on real data: {e}")
 
@@ -38,8 +39,9 @@ def test_plot_interaction_heatmap_realistic(analysis_results):
     """Test plot_interaction_heatmap with real analysis results."""
     _, combo_results = analysis_results
     try:
-        plot_interaction_heatmap(combo_results, top_k=5)
-        plt.close()
+        fig = plot_interaction_heatmap(combo_results, top_k=5)
+        assert fig is not None, "plot_interaction_heatmap should return a Figure"
+        plt.close(fig)
     except Exception as e:
         pytest.fail(f"plot_interaction_heatmap raised exception on real data: {e}")
 

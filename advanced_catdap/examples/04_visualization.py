@@ -51,11 +51,15 @@ def run_churn_analysis():
     # In a real environment, these would open windows. Here we could save them using matplotlib if needed.
     # We just run them to show API usage.
     try:
-        plot_importance(importances)
+        import matplotlib.pyplot as plt
+        fig1 = plot_importance(importances)
         print(" - Importance plot generated.")
+        plt.show() # Explicitly show
+        
         if not interactions.empty:
-            plot_interaction_heatmap(interactions)
+            fig2 = plot_interaction_heatmap(interactions)
             print(" - Interaction heatmap generated.")
+            plt.show() # Explicitly show
     except Exception as e:
         print(f"Visualization skipped (e.g. no display): {e}")
 
