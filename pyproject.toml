@@ -1,0 +1,19 @@
+[project]
+name = "advanced_catdap"
+version = "0.1.0"
+description = "Advanced Categorical Data Analysis Program (AIC-based variable selection)"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "matplotlib>=3.10.8",
+    "numpy>=2.2.6",
+    "pandas>=2.3.3",
+    "scikit-learn>=1.7.2",
+    "seaborn>=0.13.2",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.2",
+    "pytest-cov>=7.0.0",
+]
