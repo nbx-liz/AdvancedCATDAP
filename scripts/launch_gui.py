@@ -13,16 +13,12 @@ def launch():
     # We use 'start' to open new command prompt windows
     
     # 1. API
-    # uvicorn advanced_catdap.service.api:app --reload --port 8000
     print("Launching API...")
     subprocess.Popen('start cmd /k "set PYTHONPATH=. && uv run uvicorn advanced_catdap.service.api:app --reload --port 8000"', shell=True)
     
-    
-    # 2. Worker (Removed: running in local subprocess)
-    
+    # 2. Worker (Implicitly handled by JobManager)
     
     # 3. Frontend
-    # streamlit run advanced_catdap/frontend/app.py
     print("Launching Frontend...")
     # Give API a second to spin up
     time.sleep(2)

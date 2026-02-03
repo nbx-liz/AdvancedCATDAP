@@ -85,7 +85,6 @@ with tab2:
                     st.session_state.job_id = job_id
                     st.session_state.analysis_result = None # Reset previous result
                     st.success(f"Job submitted: {job_id}")
-                    # Auto-switch to results could be nice, but simple message is fine
                 except Exception as e:
                     st.error(f"Submission failed: {e}")
     else:
@@ -156,8 +155,6 @@ with tab3:
                     # Plotly Heatmap
                     # Construct pivot
                     pivot = df_ii.pivot(index="feature_1", columns="feature_2", values="gain")
-                    # Symmetrize roughly
-                    # Better: scatter plot of interactions or just the list since matrix is sparse
                     
                     st.write(df_ii.head(20))
                     

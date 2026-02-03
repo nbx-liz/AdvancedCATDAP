@@ -4,7 +4,6 @@ from typing import List, Optional
 import shutil
 import os
 import tempfile
-import tempfile
 from pathlib import Path
 import pandas as pd
 
@@ -56,26 +55,12 @@ async def upload_dataset(file: UploadFile = File(...)):
 
 @app.get("/datasets/{dataset_id}", response_model=DatasetMetadata)
 def get_dataset_metadata(dataset_id: str):
-    # For MVP, we don't have a separate metadata store DB. 
-    # We have to re-read parquet metadata or keep it in memory.
-    # DatasetManager doesn't currently persist metadata separate from file.
-    # We'll re-open the parquet file to get stats (fast).
     path = dataset_manager.storage_dir / f"{dataset_id}.parquet"
     if not path.exists():
         raise HTTPException(status_code=404, detail="Dataset not found")
     
-    # Re-registering effectively re-reads metadata
-    # Optimally, we should store this in a SQLite DB. 
-    # For now, let's just use register_dataset on the existing file (a bit hacky but works for stateless)
-    # Actually, register_dataset expects a source file and copies it.
-    # We need a 'get_metadata' method in manager. 
-    # For now, let's just return minimal info or implement get_metadata in manager.
-    
-    # Let's implement a quick get_metadata in Manager if possible, or just fake it here using register logic?
-    # Better: Use register_dataset but pointing to the internal file? No, it will try to copy to self.
-    
-    # Let's verify what register_dataset does. It reads header and calculates stats.
-    # We can just return basic info here if we don't want to re-scan.
+    # In a production app, we would query a database.
+    # Here we re-scan the file to reconstruct metadata.
     return dataset_manager.register_dataset(str(path), dataset_id=dataset_id) 
 
 
