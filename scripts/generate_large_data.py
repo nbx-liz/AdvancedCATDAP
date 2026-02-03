@@ -31,7 +31,7 @@ def generate_large_data():
     
     df = pd.DataFrame(data)
     
-    output = "large_data.csv"
+    output = "data/large_data.csv"
     print(f"Saving to {output}...")
     df.to_csv(output, index=False)
     

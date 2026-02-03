@@ -4,10 +4,10 @@ import pandas as pd
 import numpy as np
 
 # Add project root
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from advanced_catdap import AdvancedCATDAP, plot_importance, plot_interaction_heatmap
-from advanced_catdap.examples.utils import generate_crm_data
+from utils import generate_crm_data
 
 def run_churn_analysis():
     print("\n=== Customer Churn Analysis Demo ===")

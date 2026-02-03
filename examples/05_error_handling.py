@@ -3,7 +3,7 @@ import os
 import pandas as pd
 import numpy as np
 
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from advanced_catdap import AdvancedCATDAP
 
 def run_error_handling_demo():

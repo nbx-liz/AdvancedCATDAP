@@ -4,10 +4,10 @@ import pandas as pd
 import numpy as np
 
 # Add project root to path
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from advanced_catdap import AdvancedCATDAP
-from advanced_catdap.examples.utils import generate_crm_data, generate_ltv_data
+from utils import generate_crm_data, generate_ltv_data
 
 def run_classification_demo():
     print("\n=== Classification Demo (Pandas API) ===")
