@@ -20,7 +20,9 @@ setup(
         "celery>=5.0.0",
         "redis>=4.0.0",
         "python-multipart",
-        "eventlet"
+        "eventlet",
+        "streamlit>=1.25.0",
+        "plotly"
     ],
     python_requires=">=3.7",
 )

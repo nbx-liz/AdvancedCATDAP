@@ -27,7 +27,11 @@ dependencies = [
     "redis>=4.0.0",
     "python-multipart>=0.0.22",
     "eventlet>=0.40.4",
+    "streamlit>=1.25.0",
+    "plotly>=5.0.0",
     "httpx>=0.28.1",
+    "streamlit>=1.25.0",
+    "plotly>=6.5.2",
 ]
 
 [dependency-groups]
