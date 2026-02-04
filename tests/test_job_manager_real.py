@@ -29,7 +29,8 @@ def test_job_caching(clean_job_dir):
             assert job_id_1 is not None
 
     # 2. Simulate Job Completion (Success) calling internal DB method
-    mgr._update_job_status(job_id_1, "SUCCESS", result={"ok": 1})
+    # 2. Simulate Job Completion (Success) calling internal DB method
+    mgr.repository.update_status(job_id_1, "SUCCESS", result=json.dumps({"ok": 1}))
         
     # 3. Second Submit (Same Params)
     with patch("subprocess.Popen") as mock_popen_2:

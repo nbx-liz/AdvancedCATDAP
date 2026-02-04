@@ -42,9 +42,10 @@ def test_run_worker_full_load(tmp_path):
         assert "SELECT * FROM" in str(mock_con.execute.call_args)
         
         # Verify status updates
-        assert mock_jm._update_job_status.call_count >= 2 # RUNNING, SUCCESS (maybe progress)
-        mock_jm._update_job_status.assert_any_call("job_full", "RUNNING")
-        mock_jm._update_job_status.assert_any_call("job_full", "SUCCESS", result={'res': 1})
+        assert mock_jm.repository.update_status.call_count >= 2 # RUNNING, SUCCESS (maybe progress)
+        mock_jm.repository.update_status.assert_any_call("job_full", "RUNNING")
+        # local_worker now dumps result to json
+        mock_jm.repository.update_status.assert_any_call("job_full", "SUCCESS", result=json.dumps({'res': 1}))
 
 def test_run_worker_success(tmp_path):
     # Setup Data
@@ -80,7 +81,8 @@ def test_run_worker_success(tmp_path):
         run_worker("job1", dataset_id, params, str(data_dir), str(db_path))
         
         # Verify success update
-        mock_jm._update_job_status.assert_any_call("job1", "SUCCESS", result={'feature_importances': []})
+        # Verify success update
+        mock_jm.repository.update_status.assert_any_call("job1", "SUCCESS", result=json.dumps({'feature_importances': []}))
 
 def test_run_worker_failure(tmp_path):
     data_dir = tmp_path
@@ -98,7 +100,7 @@ def test_run_worker_failure(tmp_path):
         # We need to check if assert_any_call works with partial matches or check args manually
         # mock_jm._update_job_status.assert_any_call("job_fail", "FAILURE", error="Boom") # exact error string might vary
         
-        args = mock_jm._update_job_status.call_args_list[-1]
+        args = mock_jm.repository.update_status.call_args_list[-1]
         assert args[0][0] == "job_fail"
         assert args[0][1] == "FAILURE"
         assert "Boom" in args[1]['error']

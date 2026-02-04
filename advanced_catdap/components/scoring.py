@@ -78,6 +78,67 @@ class Scorer:
         k = np.count_nonzero(row_sums > 0) * (n_classes - 1)
         return self.calc_score(log_lik, k, len(target_int), False), k
 
+    def calc_score_regression_partial(self, 
+                                    codes_valid: np.ndarray,
+                                    target_valid: np.ndarray,
+                                    target_sq_valid: np.ndarray,
+                                    r: int,
+                                    stats_missing: Dict[str, Any],
+                                    n_total: int) -> float:
+        """
+        Calculates AIC/AICc for regression using partial valid data + missing stats.
+        """
+        # RSS for valid part
+        counts = np.bincount(codes_valid, minlength=r)
+        sum_y = np.bincount(codes_valid, weights=target_valid, minlength=r)
+        sum_y2 = np.bincount(codes_valid, weights=target_sq_valid, minlength=r)
+        
+        valid_k_mask = counts > 0
+        k_valid = np.count_nonzero(valid_k_mask)
+        term2 = np.zeros_like(sum_y)
+        term2[valid_k_mask] = (sum_y[valid_k_mask] ** 2) / counts[valid_k_mask]
+        rss_valid = np.sum(sum_y2 - term2)
+        
+        # Combine
+        rss_total = max(rss_valid + stats_missing.get('rss', 0.0), EPSILON_RSS)
+        k_total = k_valid + (1 if stats_missing['n'] > 0 else 0) + 1 # +1 for variance param
+        
+        return self.calc_score(rss_total, k_total, n_total, True)
+
+    def calc_score_classification_partial(self,
+                                        codes_valid: np.ndarray,
+                                        target_int_valid: np.ndarray,
+                                        n_classes: int,
+                                        r: int,
+                                        stats_missing: Dict[str, Any],
+                                        n_total: int) -> float:
+        """
+        Calculates AIC/AICc for classification using partial valid data + missing stats.
+        """
+        if r * n_classes * 8 > self.max_classification_bytes: 
+            return float('inf')
+            
+        flat_idx = codes_valid.astype(np.int64) * n_classes + target_int_valid
+        ct_flat = np.bincount(flat_idx, minlength=r * n_classes)
+        row_sums = np.bincount(codes_valid, minlength=r)
+        
+        nz_indices = np.flatnonzero(ct_flat)
+        nz_counts = ct_flat[nz_indices]
+        group_indices = nz_indices // n_classes
+        nz_row_sums = row_sums[group_indices]
+        
+        term1 = np.sum(nz_counts * np.log(nz_counts))
+        term2 = np.sum(nz_counts * np.log(nz_row_sums))
+        loglik_valid = term1 - term2
+        
+        k_valid = np.count_nonzero(row_sums>0) * (n_classes - 1)
+        
+        loglik_total = loglik_valid + stats_missing.get('loglik_part', 0.0)
+        k_miss = (n_classes - 1) if stats_missing['n'] > 0 else 0
+        k_total = k_valid + k_miss
+        
+        return self.calc_score(loglik_total, k_total, n_total, False)
+
     def calc_stats_missing(self, target, target_sq, target_int, n_classes, valid_mask, task_mode):
         missing_mask = ~valid_mask
         n_missing = np.count_nonzero(missing_mask)

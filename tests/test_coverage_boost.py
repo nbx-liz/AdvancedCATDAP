@@ -43,7 +43,15 @@ def test_local_worker_with_sample_size(tmp_path):
         
         assert mock_dm.get_sample.called
         mock_dm.get_sample.assert_called_with(dataset_id, n_rows=100)
-        mock_jm._update_job_status.assert_any_call("job_sample", "SUCCESS", result={'res': "sample"})
+        # Mocked JobManager has a repository mock by default or we should access it if we mocked the class
+        # mock_jm is instance of JobManager. 
+        # Since we use dependency injection or it creates one, we need to ensure the mock structure
+        # run_worker creates JobManager() which creates SQLiteJobRepository by default
+        # But we patched JobManager class.
+        
+        # When run_worker calls JobManager(), it gets mock_jm.
+        # run_worker calls jm.repository.update_status
+        mock_jm.repository.update_status.assert_any_call("job_sample", "SUCCESS", result=json.dumps({'res': "sample"}))
 
 def test_local_worker_file_not_found(tmp_path):
     """Test local worker when dataset file is missing."""
@@ -64,7 +72,8 @@ def test_local_worker_file_not_found(tmp_path):
         
         run_worker("job_missing", dataset_id, params, str(data_dir), str(db_path))
         
-        args = mock_jm._update_job_status.call_args_list[-1]
+        # Check calls on repository
+        args = mock_jm.repository.update_status.call_args_list[-1]
         assert args[0][0] == "job_missing"
         assert args[0][1] == "FAILURE"
         assert "not found" in args[1]['error']
@@ -95,16 +104,20 @@ def test_job_manager_submit_failure(tmp_path):
         assert "Exec failed" in row[1]
 
 def test_job_manager_db_error_on_status(tmp_path):
-    """Test JobManager handles DB error during status update."""
+    """Test SQLiteJobRepository handles DB error during status update."""
     db_path = tmp_path / "jobs.db"
-    jm = JobManager(str(db_path))
+    
+    # We test the repository directly since JobManager delegates to it
+    from advanced_catdap.service.repository import SQLiteJobRepository
+    repo = SQLiteJobRepository(db_path)
+    repo.init_storage()
     
     # Create a job manually
     with sqlite3.connect(db_path) as conn:
         conn.execute("INSERT INTO jobs (job_id, dataset_id, status) VALUES ('j1', 'd1', 'PENDING')")
         
     # Mock _get_connection to raise
-    with patch.object(jm, '_get_connection', side_effect=sqlite3.Error("DB connection died")):
+    with patch.object(repo, '_get_connection', side_effect=sqlite3.Error("DB connection died")):
         # Should catch error and log it, not raise
-        jm._update_job_status("j1", "RUNNING")
+        repo.update_status("j1", "RUNNING")
         # Pass if no exception
