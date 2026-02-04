@@ -115,6 +115,13 @@ class Discretizer(BaseEstimator, TransformerMixin):
         self.processed_codes_ = {} # Caches for InteractionSearcher
         self.processed_r_ = {}
         
+        # Strategies
+        self.strategies = {
+            'tree': TreeStrategy(),
+            'qcut': QuantileStrategy(),
+            'cut': UniformStrategy()
+        }
+        
     def fit(self, X: pd.DataFrame, y: np.ndarray, 
             baseline_score: float,
             target_sq: Optional[np.ndarray] = None,
@@ -235,20 +242,13 @@ class Discretizer(BaseEstimator, TransformerMixin):
         candidates = []
         X_sample_tree, y_sample_tree = None, None
         
-        # Prepare strategies
-        strategies = {
-            'tree': TreeStrategy(),
-            'qcut': QuantileStrategy(),
-            'cut': UniformStrategy()
-        }
-
-        # Prepare target for tree strategy once
+        # Prepare targets for tree strategy once
         if self.task_type == 'regression':
              y_sample_tree = t_screen
         else:
              y_sample_tree = t_int_screen
 
-        for method, strategy in strategies.items():
+        for method, strategy in self.strategies.items():
             for n_bins in range(2, max_bins + 1):
                 try:
                     codes_sample, r, rule = strategy.discretize(vals_sample, n_bins, min_samples, self.task_type, y_sample_tree)
