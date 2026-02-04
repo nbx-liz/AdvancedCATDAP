@@ -173,12 +173,13 @@ def test_float_integer_classification():
 
 def test_internal_cardinality_check_numpy():
     """Test _check_cardinality_and_id with pd.Index (to hit branch without iloc)."""
-    # Fix: Use pd.Index which has nunique but no iloc
-    model = AdvancedCATDAP()
+    from advanced_catdap.components.utils import check_cardinality_and_id
+    from advanced_catdap.config import DEFAULT_MAX_ESTIMATED_UNIQUES
+    
     # Create repeating data to ensure it's NOT an ID (unique ratio check)
     arr = pd.Index([1, 1, 2, 2, 3]) 
     sample_indices = np.array([0, 1, 2])
-    is_high, is_id = model._check_cardinality_and_id(arr, sample_indices)
+    is_high, is_id = check_cardinality_and_id(arr, sample_indices, DEFAULT_MAX_ESTIMATED_UNIQUES)
     assert not is_high
     assert not is_id
 
@@ -203,9 +204,13 @@ def test_max_categories_limit():
 
 def test_transform_category_manual():
     """Manually set rules to test transform category logic (Lines 679-685)."""
+    from advanced_catdap.components.discretizer import Discretizer
+    
     model = AdvancedCATDAP(verbose=False)
-    # Define a manual category rule
-    model.transform_rules_ = {
+    # Manually initialize discretizer and set rules
+    model.discretizer = Discretizer(task_type="classification", scorer=model.scorer)
+    
+    model.discretizer.transform_rules_ = {
         'Cat': {
             'type': 'category',
             'value_map': {'A': 0, 'B': 1},
