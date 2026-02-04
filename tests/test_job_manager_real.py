@@ -2,6 +2,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 import json
 import shutil
+import sqlite3
 from pathlib import Path
 from advanced_catdap.service.job_manager import JobManager
 from advanced_catdap.service.schema import AnalysisParams
@@ -9,7 +10,8 @@ from advanced_catdap.service.schema import AnalysisParams
 @pytest.fixture
 def clean_job_dir(tmp_path):
     # Use a temp dir for jobs
-    mgr = JobManager(data_dir=str(tmp_path))
+    db_path = tmp_path / "jobs.db"
+    mgr = JobManager(db_path=str(db_path))
     return mgr
 
 def test_job_caching(clean_job_dir):
@@ -26,11 +28,8 @@ def test_job_caching(clean_job_dir):
             assert mock_popen.called
             assert job_id_1 is not None
 
-    # 2. Simulate Job Completion (Success)
-    # We need to manually write the status file because subprocess is mocked
-    status_file = mgr.jobs_dir / f"{job_id_1}.json"
-    with open(status_file, "w") as f:
-        json.dump({"job_id": job_id_1, "status": "SUCCESS"}, f)
+    # 2. Simulate Job Completion (Success) calling internal DB method
+    mgr._update_job_status(job_id_1, "SUCCESS", result={"ok": 1})
         
     # 3. Second Submit (Same Params)
     with patch("subprocess.Popen") as mock_popen_2:
