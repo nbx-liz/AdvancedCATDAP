@@ -22,7 +22,7 @@ def run_worker(job_id: str, dataset_id: str, params_json: str, data_dir: str, db
     
     try:
         # Initial running state
-        job_manager._update_job_status(job_id, "RUNNING")
+        job_manager.repository.update_status(job_id, "RUNNING")
 
         # Parse params
         params_dict = json.loads(params_json)
@@ -51,7 +51,7 @@ def run_worker(job_id: str, dataset_id: str, params_json: str, data_dir: str, db
             print(f"Progress: {stage} - {data}")
             from advanced_catdap.service.utils import sanitize_for_json
             clean_data = sanitize_for_json(data)
-            job_manager._update_job_status(job_id, "PROGRESS", progress={"stage": stage, "data": clean_data})
+            job_manager.repository.update_status(job_id, "PROGRESS", progress=json.dumps({"stage": stage, "data": clean_data}))
 
         # Run
         result = analyzer.run_analysis(df, params, progress_cb=progress_tracker)
@@ -60,14 +60,14 @@ def run_worker(job_id: str, dataset_id: str, params_json: str, data_dir: str, db
         clean_result = sanitize_for_json(result.model_dump())
 
         # Success
-        job_manager._update_job_status(job_id, "SUCCESS", result=clean_result)
+        job_manager.repository.update_status(job_id, "SUCCESS", result=json.dumps(clean_result))
         print("Job successful")
 
     except Exception as e:
         err_msg = str(e)
         st = traceback.format_exc()
         print(f"Job Failed: {err_msg}\n{st}")
-        job_manager._update_job_status(job_id, "FAILURE", error=err_msg)
+        job_manager.repository.update_status(job_id, "FAILURE", error=err_msg)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

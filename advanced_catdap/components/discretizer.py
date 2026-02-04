@@ -8,9 +8,75 @@ from sklearn.base import BaseEstimator, TransformerMixin
 from ..config import *
 from .scoring import Scorer
 from .utils import downcast_codes_safe, check_cardinality_and_id
+from abc import ABC, abstractmethod
 import logging
 
 logger = logging.getLogger(__name__)
+
+class DiscretizationStrategy(ABC):
+    """Abstract base class for discretization strategies."""
+    
+    @abstractmethod
+    def discretize(self, vals_sample: np.ndarray, n_bins: int, 
+                   min_samples: int, task_type: str, 
+                   y_sample: Optional[np.ndarray] = None) -> Tuple[Optional[np.ndarray], int, Optional[Dict[str, Any]]]:
+        """
+        Returns:
+            codes_sample: Discretized codes for the sample.
+            r: Number of bins (cardinality).
+            rule: Rule dictionary for reproduction.
+        """
+        pass
+
+class TreeStrategy(DiscretizationStrategy):
+    def discretize(self, vals_sample: np.ndarray, n_bins: int, 
+                   min_samples: int, task_type: str, 
+                   y_sample: Optional[np.ndarray] = None) -> Tuple[Optional[np.ndarray], int, Optional[Dict[str, Any]]]:
+        if y_sample is None: return None, 1, None
+        X_sample = vals_sample.reshape(-1, 1)
+        if len(X_sample) < min_samples: return None, 1, None
+        
+        estimator = DecisionTreeRegressor if task_type == 'regression' else DecisionTreeClassifier
+        tree = estimator(max_leaf_nodes=n_bins, min_samples_leaf=min_samples, random_state=42)
+        tree.fit(X_sample, y_sample)
+        
+        leaf_ids = tree.apply(X_sample)
+        unique_leaves = np.unique(leaf_ids)
+        codes_sample = np.searchsorted(unique_leaves, leaf_ids)
+        r = len(unique_leaves) + 1
+        rule = {'type': 'tree', 'model': tree, 'leaves': unique_leaves, 'missing_code': r-1}
+        return codes_sample, r, rule
+
+class QuantileStrategy(DiscretizationStrategy):
+    def discretize(self, vals_sample: np.ndarray, n_bins: int, 
+                   min_samples: int, task_type: str, 
+                   y_sample: Optional[np.ndarray] = None) -> Tuple[Optional[np.ndarray], int, Optional[Dict[str, Any]]]:
+        quantiles = np.linspace(0, 1, n_bins + 1)
+        bins = np.unique(np.quantile(vals_sample, quantiles))
+        if len(bins) < 2: return None, 1, None
+        
+        bins[0], bins[-1] = -np.inf, np.inf
+        c_samp = np.searchsorted(bins, vals_sample, side='right') - 1
+        codes_sample = np.clip(c_samp, 0, len(bins) - 2)
+        r = len(bins)
+        rule = {'type': 'qcut', 'bins': bins, 'missing_code': r-1}
+        return codes_sample, r, rule
+
+class UniformStrategy(DiscretizationStrategy):
+    def discretize(self, vals_sample: np.ndarray, n_bins: int, 
+                   min_samples: int, task_type: str, 
+                   y_sample: Optional[np.ndarray] = None) -> Tuple[Optional[np.ndarray], int, Optional[Dict[str, Any]]]:
+        v_min, v_max = vals_sample.min(), vals_sample.max()
+        if v_min == v_max: return None, 1, None
+        
+        bins = np.linspace(v_min, v_max, n_bins + 1)
+        bins[0], bins[-1] = -np.inf, np.inf
+        c_samp = np.searchsorted(bins, vals_sample, side='right') - 1
+        codes_sample = np.clip(c_samp, 0, len(bins) - 2)
+        r = len(bins)
+        rule = {'type': 'cut', 'bins': bins, 'missing_code': r-1}
+        return codes_sample, r, rule
+
 
 class Discretizer(BaseEstimator, TransformerMixin):
     """
@@ -168,49 +234,27 @@ class Discretizer(BaseEstimator, TransformerMixin):
 
         candidates = []
         X_sample_tree, y_sample_tree = None, None
-        v_min, v_max = vals_valid.min(), vals_valid.max()
-        can_cut = (v_min != v_max)
+        
+        # Prepare strategies
+        strategies = {
+            'tree': TreeStrategy(),
+            'qcut': QuantileStrategy(),
+            'cut': UniformStrategy()
+        }
 
-        for method in ['qcut', 'cut', 'tree']:
+        # Prepare target for tree strategy once
+        if self.task_type == 'regression':
+             y_sample_tree = t_screen
+        else:
+             y_sample_tree = t_int_screen
+
+        for method, strategy in strategies.items():
             for n_bins in range(2, max_bins + 1):
                 try:
-                    rule = None; r = 1; codes_sample = None
-                    if method == 'tree':
-                        if X_sample_tree is None:
-                            X_sample_tree = vals_sample.reshape(-1, 1)
-                            y_sample_tree = t_screen if self.task_type=='regression' else t_int_screen
-                        if len(X_sample_tree) < min_samples: continue
-
-                        estimator = DecisionTreeRegressor if self.task_type == 'regression' else DecisionTreeClassifier
-                        tree = estimator(max_leaf_nodes=n_bins, min_samples_leaf=min_samples, random_state=42)
-                        tree.fit(X_sample_tree, y_sample_tree)
-                        leaf_ids = tree.apply(X_sample_tree)
-                        unique_leaves = np.unique(leaf_ids)
-                        mapped = np.searchsorted(unique_leaves, leaf_ids)
-                        codes_sample = mapped
-                        r = len(unique_leaves) + 1
-                        rule = {'type': 'tree', 'model': tree, 'leaves': unique_leaves, 'missing_code': r-1}
+                    codes_sample, r, rule = strategy.discretize(vals_sample, n_bins, min_samples, self.task_type, y_sample_tree)
                     
-                    elif method == 'qcut':
-                        quantiles = np.linspace(0, 1, n_bins + 1)
-                        bins = np.unique(np.quantile(vals_sample, quantiles))
-                        if len(bins) < 2: continue
-                        bins[0], bins[-1] = -np.inf, np.inf
-                        c_samp = np.searchsorted(bins, vals_sample, side='right') - 1
-                        codes_sample = np.clip(c_samp, 0, len(bins) - 2)
-                        r = len(bins)
-                        rule = {'type': 'qcut', 'bins': bins, 'missing_code': r-1}
-                        
-                    elif method == 'cut':
-                        if not can_cut: continue
-                        bins = np.linspace(v_min, v_max, n_bins + 1)
-                        bins[0], bins[-1] = -np.inf, np.inf
-                        c_samp = np.searchsorted(bins, vals_sample, side='right') - 1
-                        codes_sample = np.clip(c_samp, 0, len(bins) - 2)
-                        r = len(bins)
-                        rule = {'type': 'cut', 'bins': bins, 'missing_code': r-1}
+                    if codes_sample is None or r < 2: continue
                     
-                    if r < 2: continue
                     score_sample = self._calc_score_wrapper(
                         codes_sample, t_screen, tsq_screen, t_int_screen, n_classes, int(codes_sample.max()) + 1
                     )
@@ -301,58 +345,20 @@ class Discretizer(BaseEstimator, TransformerMixin):
         return score
 
     def _calc_score_partial(self, codes_valid, target, target_sq, target_int, n_classes, valid_mask, stats_missing, r):
-        # Re-implement logic using Scorer, but partial calc is tricky to fully map to single scorer call 
-        # because of valid/missing separation.
-        # However, we can construct the full RSS/LogLik from parts and call Scorer.calc_score safely.
-        
-        n_valid = len(codes_valid)
-        n_total = n_valid + stats_missing['n']
+        n_total = len(target) if target is not None else len(target_int)
         
         if self.task_type == 'regression':
             t_valid = target[valid_mask]
             tsq_valid = target_sq[valid_mask]
             
-            # Local calculation of valid RSS
-            counts = np.bincount(codes_valid, minlength=r)
-            sum_y = np.bincount(codes_valid, weights=t_valid, minlength=r)
-            sum_y2 = np.bincount(codes_valid, weights=tsq_valid, minlength=r)
-            
-            valid_k_mask = counts > 0
-            k_valid = np.count_nonzero(valid_k_mask)
-            term2 = np.zeros_like(sum_y)
-            term2[valid_k_mask] = (sum_y[valid_k_mask] ** 2) / counts[valid_k_mask]
-            rss_valid = np.sum(sum_y2 - term2)
-            
-            rss_total = max(rss_valid + stats_missing.get('rss', 0.0), 1e-10)
-            k_total = k_valid + (1 if stats_missing['n'] > 0 else 0) + 1 
-            
-            return self.scorer.calc_score(rss_total, k_total, n_total, True)
-            
+            return self.scorer.calc_score_regression_partial(
+                codes_valid, t_valid, tsq_valid, r, stats_missing, n_total
+            )
         else: 
-            if r * n_classes * 8 > self.scorer.max_classification_bytes: return float('inf')
             t_valid = target_int[valid_mask]
-            
-            # Local calcluation of valid LogLik
-            flat_idx = codes_valid.astype(np.int64) * n_classes + t_valid
-            ct_flat = np.bincount(flat_idx, minlength=r * n_classes)
-            row_sums = np.bincount(codes_valid, minlength=r)
-            
-            nz_indices = np.flatnonzero(ct_flat)
-            nz_counts = ct_flat[nz_indices]
-            group_indices = nz_indices // n_classes
-            nz_row_sums = row_sums[group_indices]
-            
-            term1 = np.sum(nz_counts * np.log(nz_counts))
-            term2 = np.sum(nz_counts * np.log(nz_row_sums))
-            loglik_valid = term1 - term2
-            k_valid = np.count_nonzero(row_sums > 0) * (n_classes - 1)
-            
-            loglik_total = loglik_valid + stats_missing.get('loglik_part', 0.0)
-            k_miss = (n_classes - 1) if stats_missing['n'] > 0 else 0
-            k_total = k_valid + k_miss
-            
-            # Pass False for is_regression
-            return self.scorer.calc_score(loglik_total, k_total, n_total, False)
+            return self.scorer.calc_score_classification_partial(
+                codes_valid, t_valid, n_classes, r, stats_missing, n_total
+            )
 
     def transform(self, X: pd.DataFrame) -> pd.DataFrame:
         if not self.transform_rules_:
