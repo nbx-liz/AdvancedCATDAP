@@ -4,7 +4,9 @@ import uuid
 import hashlib
 import sys
 import logging
+import sqlite3
 from pathlib import Path
+from contextlib import contextmanager
 from typing import Dict, Any, Optional
 from advanced_catdap.service.schema import AnalysisParams
 
@@ -12,12 +14,41 @@ logger = logging.getLogger(__name__)
 
 class JobManager:
     """
-    Manages job submission via local subprocess and file-based status tracking.
+    Manages job submission via local subprocess and SQLite status tracking.
     """
-    def __init__(self, data_dir: str = "data"):
-        self.data_dir = Path(data_dir)
-        self.jobs_dir = self.data_dir / "jobs"
-        self.jobs_dir.mkdir(parents=True, exist_ok=True)
+    def __init__(self, db_path: str = "data/jobs.db"):
+        self.db_path = Path(db_path)
+        self.data_dir = self.db_path.parent
+        self.data_dir.mkdir(parents=True, exist_ok=True)
+        self._init_db()
+    
+    def _init_db(self):
+        with self._get_connection() as conn:
+            # Automatic transaction via 'with conn' inside _get_connection not guaranteed if we change it
+            # Explicitly commit here or rely on the helper
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS jobs (
+                    job_id TEXT PRIMARY KEY,
+                    dataset_id TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    params TEXT,
+                    result TEXT,
+                    error TEXT,
+                    progress TEXT,
+                    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            conn.commit()
+
+    @contextmanager
+    def _get_connection(self):
+        """Yields a connection that is automatically closed on exit."""
+        conn = sqlite3.connect(self.db_path, timeout=30.0)
+        try:
+            yield conn
+        finally:
+            conn.close()
     
     def submit_job(self, dataset_id: str, params: AnalysisParams) -> str:
         # Create deterministic Job ID based on inputs (Caching)
@@ -27,13 +58,20 @@ class JobManager:
         job_id = hashlib.md5(key_str.encode('utf-8')).hexdigest()
         
         # Check if job already exists
-        existing_status = self.get_job_status(job_id)
-        if existing_status["status"] in ["PENDING", "RUNNING", "PROGRESS", "SUCCESS"]:
-            logger.info(f"Job {job_id} already exists with status {existing_status['status']}. Returning cached result.")
+        status_info = self.get_job_status(job_id)
+        if status_info["status"] in ["PENDING", "RUNNING", "PROGRESS", "SUCCESS"]:
+            logger.info(f"Job {job_id} already exists with status {status_info['status']}. Returning cached result.")
             return job_id
         
         # If UNKNOWN (doesn't exist) or FAILURE, we submit a new run
-        logger.info(f"Submitting new local job {job_id} (Status: {existing_status['status']})")
+        logger.info(f"Submitting new local job {job_id}")
+
+        with self._get_connection() as conn:
+            with conn: # Transaction
+                conn.execute("""
+                    INSERT OR REPLACE INTO jobs (job_id, dataset_id, status, params, updated_at) 
+                    VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+                """, (job_id, dataset_id, "PENDING", params_json))
         
         # We invoke the local_worker.py script
         # Using sys.executable to ensure we use the same python env
@@ -45,42 +83,66 @@ class JobManager:
             "--job-id", job_id,
             "--dataset-id", dataset_id,
             "--params", params_json,
+            "--db-path", str(self.db_path),
+            # Pass data dir for DatasetManager
             "--data-dir", str(self.data_dir)
         ]
         
         # Popen is non-blocking
         # We redirect stdout/stderr to a log file for debugging
-        log_file = self.jobs_dir / f"{job_id}.log"
+        log_dir = self.data_dir / "jobs_logs"
+        log_dir.mkdir(exist_ok=True)
+        log_file = log_dir / f"{job_id}.log"
+        
         with open(log_file, "w") as f:
             subprocess.Popen(cmd, stdout=f, stderr=f)
             
-        # Create initial PENDING status file immediately so API doesn't 404
-        self._write_initial_status(job_id)
-        
         return job_id
 
-    def _write_initial_status(self, job_id: str):
-        job_file = self.jobs_dir / f"{job_id}.json"
-        if not job_file.exists():
-            with open(job_file, "w") as f:
-                json.dump({"job_id": job_id, "status": "PENDING"}, f)
-
     def get_job_status(self, job_id: str) -> Dict[str, Any]:
-        job_file = self.jobs_dir / f"{job_id}.json"
+        with self._get_connection() as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.execute("SELECT * FROM jobs WHERE job_id = ?", (job_id,))
+            row = cursor.fetchone()
+            
+            if not row:
+                return {"job_id": job_id, "status": "UNKNOWN"}
+            
+            res = dict(row)
+            # Deserialize JSON fields
+            for field in ['params', 'result', 'progress']:
+                if res.get(field):
+                    try:
+                        res[field] = json.loads(res[field])
+                    except json.JSONDecodeError:
+                        pass 
+            
+            return res
+            
+    def _update_job_status(self, job_id: str, status: str, result=None, error=None, progress=None):
+        query_parts = ["status = ?", "updated_at = CURRENT_TIMESTAMP"]
+        params = [status]
         
-        if not job_file.exists():
-            # Check if log exists, maybe it crashed before writing json?
-            log_file = self.jobs_dir / f"{job_id}.log"
-            if log_file.exists():
-                 return {"job_id": job_id, "status": "PENDING", "note": "Processing..."}
-            return {"job_id": job_id, "status": "UNKNOWN"}
+        if result is not None:
+            query_parts.append("result = ?")
+            params.append(json.dumps(result))
+        
+        if error is not None:
+            query_parts.append("error = ?")
+            params.append(error)
             
-        try:
-            with open(job_file, "r") as f:
-                return json.load(f)
-        except json.JSONDecodeError:
-            return {"job_id": job_id, "status": "PENDING", "note": "Reading..."}
+        if progress is not None:
+            query_parts.append("progress = ?")
+            params.append(json.dumps(progress))
             
+        params.append(job_id)
+        
+        sql = f"UPDATE jobs SET {', '.join(query_parts)} WHERE job_id = ?"
+        
+        with self._get_connection() as conn:
+            with conn: # Transaction
+                conn.execute(sql, params)
+
     def cancel_job(self, job_id: str):
         # Local process cancellation is hard without PID tracking.
         # For MVP, we just ignore it.

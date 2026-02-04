@@ -11,55 +11,18 @@ sys.path.append(str(Path(__file__).parent.parent.parent))
 from advanced_catdap.service.analyzer import AnalyzerService
 from advanced_catdap.service.dataset_manager import DatasetManager
 from advanced_catdap.service.schema import AnalysisParams
+from advanced_catdap.service.job_manager import JobManager
 
-def update_status(job_file: Path, status: str, result=None, progress=None, error=None):
-    """
-    Atomic update of job file.
-    """
-    data = {
-        "job_id": job_file.stem,
-        "status": status,
-        "last_updated": datetime.now().isoformat()
-    }
-    if result: data["result"] = result
-    if progress: data["progress"] = progress
-    if error: data["error"] = error
-    
-    import time
-    
-    # Write to temp then move to ensure atomic read
-    tmp_path = job_file.with_suffix(".tmp")
-    with open(tmp_path, "w") as f:
-        json.dump(data, f, default=str)
-    
-    # Retry mechanism for Windows file locking issues
-    max_retries = 5
-    for i in range(max_retries):
-        try:
-            tmp_path.replace(job_file)
-            break
-        except (FileExistsError, PermissionError, OSError):
-            if i == max_retries - 1:
-                # Last attempt failed, try force remove if exists
-                try:
-                    if job_file.exists():
-                        job_file.unlink()
-                    tmp_path.rename(job_file)
-                except Exception as e:
-                    print(f"Failed to save status file: {e}")
-                    # Don't crash worker, just log
-            else:
-                time.sleep(0.1 * (i + 1))
-    
-def run_worker(job_id: str, dataset_id: str, params_json: str, data_dir: str):
-    job_file = Path(data_dir) / "jobs" / f"{job_id}.json"
-    job_file.parent.mkdir(parents=True, exist_ok=True)
+def run_worker(job_id: str, dataset_id: str, params_json: str, data_dir: str, db_path: str):
     
     print(f"Starting job {job_id} for dataset {dataset_id}")
     
+    # Initialize JobManager
+    job_manager = JobManager(db_path=db_path)
+    
     try:
         # Initial running state
-        update_status(job_file, "RUNNING")
+        job_manager._update_job_status(job_id, "RUNNING")
 
         # Parse params
         params_dict = json.loads(params_json)
@@ -70,11 +33,9 @@ def run_worker(job_id: str, dataset_id: str, params_json: str, data_dir: str):
         analyzer = AnalyzerService()
 
         # Load Data
-        # Using get_sample logic (all data if no sample size)
         if params.sample_size:
             df = dataset_manager.get_sample(dataset_id, n_rows=params.sample_size)
         else:
-            # Full load via duckdb query
             path = dataset_manager.storage_dir / f"{dataset_id}.parquet"
             if not path.exists():
                 raise FileNotFoundError(f"Dataset {dataset_id} not found")
@@ -88,7 +49,9 @@ def run_worker(job_id: str, dataset_id: str, params_json: str, data_dir: str):
         # Callback
         def progress_tracker(stage, data):
             print(f"Progress: {stage} - {data}")
-            update_status(job_file, "PROGRESS", progress={"stage": stage, "data": data})
+            from advanced_catdap.service.utils import sanitize_for_json
+            clean_data = sanitize_for_json(data)
+            job_manager._update_job_status(job_id, "PROGRESS", progress={"stage": stage, "data": clean_data})
 
         # Run
         result = analyzer.run_analysis(df, params, progress_cb=progress_tracker)
@@ -97,14 +60,14 @@ def run_worker(job_id: str, dataset_id: str, params_json: str, data_dir: str):
         clean_result = sanitize_for_json(result.model_dump())
 
         # Success
-        update_status(job_file, "SUCCESS", result=clean_result)
+        job_manager._update_job_status(job_id, "SUCCESS", result=clean_result)
         print("Job successful")
 
     except Exception as e:
         err_msg = str(e)
         st = traceback.format_exc()
         print(f"Job Failed: {err_msg}\n{st}")
-        update_status(job_file, "FAILURE", error=err_msg)
+        job_manager._update_job_status(job_id, "FAILURE", error=err_msg)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -112,6 +75,7 @@ if __name__ == "__main__":
     parser.add_argument("--dataset-id", required=True)
     parser.add_argument("--params", required=True)
     parser.add_argument("--data-dir", default="data")
+    parser.add_argument("--db-path", default="data/jobs.db")
     
     args = parser.parse_args()
     
@@ -119,5 +83,6 @@ if __name__ == "__main__":
         job_id=args.job_id,
         dataset_id=args.dataset_id,
         params_json=args.params,
-        data_dir=args.data_dir
+        data_dir=args.data_dir,
+        db_path=args.db_path
     )
