@@ -79,3 +79,13 @@
 - 依存関係の追加・更新（特に解析系パッケージは肥大化しやすい）
 - CI/リリース手順の変更
 - データスキーマ変更、DB変更、クラウド資源を触る操作
+
+---
+
+## 8) Git/GitHub rules
+- Never push to main (PR only). No force-push to shared branches.
+- Do not merge PRs or create releases/tags without explicit instruction.
+- Keep PRs small and reviewable. One logical change per PR.
+- PR description must include: summary, scope/impact, how to test, and outputs path (analysis reports).
+- Ask first before: adding dependencies, changing CI/workflows, changing permissions, breaking API changes.
+- Never include secrets/PII in commits, issues, PRs, logs, or artifacts.

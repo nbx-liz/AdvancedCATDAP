@@ -33,6 +33,7 @@ class InteractionImportance(BaseModel):
 
 class FeatureDetail(BaseModel):
     bin_edges: Optional[List[float]] = None
+    bin_labels: Optional[List[str]] = None
     bin_counts: Optional[List[int]] = None
     bin_means: Optional[List[float]] = None
     woe: Optional[List[float]] = None
@@ -49,6 +50,15 @@ class AnalysisParams(BaseModel):
     use_aicc: bool = True
     random_state: int = 42
 
+
+class InteractionDetail(BaseModel):
+    feature_1: str
+    feature_2: str
+    bin_labels_1: List[str]
+    bin_labels_2: List[str]
+    counts: List[List[int]] # 2D matrix
+    means: List[List[float]] # 2D matrix
+
 class AnalysisResult(BaseModel):
     job_id: Optional[str] = None
     dataset_id: Optional[str] = None
@@ -60,4 +70,5 @@ class AnalysisResult(BaseModel):
     interaction_importances: List[InteractionImportance] = []
     transform_rules: Dict[str, Any] = {}
     feature_details: Dict[str, FeatureDetail] = {}
+    interaction_details: Dict[str, InteractionDetail] = {} # Key: "Feat1|Feat2"
     artifacts: Dict[str, str] = {}

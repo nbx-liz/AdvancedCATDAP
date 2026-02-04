@@ -116,5 +116,14 @@ def test_update_status_race(tmp_path):
                 
             update_status(job_file, "PENDING")
             
-            assert mock_unlink.called
-            assert mock_rename.called
+            # With retry loop:
+            # 1. replace() raises FileExistsError
+            # 2. caught, sleep
+            # 3. loop retry -> replace() return value (None) -> break
+            # So unlink is NOT called.
+            
+            assert mock_unlink.call_count == 0
+            # replace called twice
+            assert mock_replace.call_count == 2
+            # rename NOT called if replace succeeds on retry
+            assert mock_rename.call_count == 0

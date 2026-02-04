@@ -18,7 +18,13 @@ def test_analyzer_flow():
             "Feature": "col1", "Score": 50, "Delta_Score": 10, "Actual_Bins": 2, "Method": "tree"
         }])
         mock_instance.interaction_importances_ = None
-        mock_instance.feature_details_ = {"col1": pd.DataFrame({"mean": [0.1], "count": [10]})}
+        mock_instance.feature_details_ = pd.DataFrame({
+            "Feature": ["col1"],
+            "Bin_Idx": [0],
+            "Bin_Label": ["Bin0"],
+            "Count": [10],
+            "Target_Mean": [0.1]
+        })
         
         service = AnalyzerService()
         df = pd.DataFrame({"target": [0, 1], "col1": [1, 2]})
