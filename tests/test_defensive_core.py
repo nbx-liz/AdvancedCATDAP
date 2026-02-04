@@ -11,16 +11,17 @@ def test_init_invalid_mode():
 
 def test_downcast_int32():
     """Test integer downcasting to int32 (Lines 642-643)."""
-    model = AdvancedCATDAP()
+    from advanced_catdap.components.utils import downcast_codes_safe
+    
     # Create array with value > 32767 but < 2147483647
     large_codes = np.array([0, 100, 40000, 50000], dtype=np.int64)
-    downcasted = model._downcast_codes_safe(large_codes)
+    downcasted = downcast_codes_safe(large_codes)
     assert downcasted.dtype == np.int32
     assert np.array_equal(downcasted, large_codes)
 
     # Test int64 preservation (Line 600)
     huge_codes = np.array([0, 2147483648], dtype=np.int64) # > 2^31-1
-    kept = model._downcast_codes_safe(huge_codes)
+    kept = downcast_codes_safe(huge_codes)
     assert kept.dtype == np.int64
     assert np.array_equal(kept, huge_codes)
 
