@@ -13,12 +13,26 @@ dependencies = [
     "pydantic>=2.0",
     "pyarrow>=14.0.0",
     "duckdb>=1.0.0",
+]
+
+[project.optional-dependencies]
+web = [
     "fastapi>=0.100.0",
     "uvicorn>=0.20.0",
     "python-multipart>=0.0.22",
+    "httpx>=0.28.1",
+]
+gui = [
     "streamlit>=1.25.0",
     "plotly>=6.5.2",
+]
+all = [
+    "fastapi>=0.100.0",
+    "uvicorn>=0.20.0",
+    "python-multipart>=0.0.22",
     "httpx>=0.28.1",
+    "streamlit>=1.25.0",
+    "plotly>=6.5.2",
 ]
 
 [dependency-groups]

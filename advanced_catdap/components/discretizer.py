@@ -8,6 +8,9 @@ from sklearn.base import BaseEstimator, TransformerMixin
 from ..config import *
 from .scoring import Scorer
 from .utils import downcast_codes_safe, check_cardinality_and_id
+import logging
+
+logger = logging.getLogger(__name__)
 
 class Discretizer(BaseEstimator, TransformerMixin):
     """
@@ -80,7 +83,8 @@ class Discretizer(BaseEstimator, TransformerMixin):
                 self.max_bins, min_samples, sample_indices, sample_mask_full,
                 self.scorer.calc_score_wrapper if hasattr(self.scorer, 'calc_score_wrapper') else None, # We don't have wrapper in scorer
                 baseline_score,
-                force_category=is_forced_cat
+                force_category=is_forced_cat,
+                feature_name=feature
             )
             
             delta = baseline_score - score
@@ -116,7 +120,7 @@ class Discretizer(BaseEstimator, TransformerMixin):
     def _process_feature_internal(self, raw_series, target, target_sq, target_int, n_classes, 
                                   max_bins, min_samples, sample_indices, sample_mask_full,
                                   scorer_wrapper_unused, baseline_score,
-                                  force_category=False):
+                                  force_category=False, feature_name="unknown"):
         
         is_numeric_type = pd.api.types.is_numeric_dtype(raw_series)
         numeric_values = None
@@ -133,12 +137,12 @@ class Discretizer(BaseEstimator, TransformerMixin):
 
         if numeric_values is not None:
             return self._discretize_numeric(numeric_values, target, target_sq, target_int, n_classes,
-                                          max_bins, min_samples, sample_indices, sample_mask_full, baseline_score)
+                                          max_bins, min_samples, sample_indices, sample_mask_full, baseline_score, feature_name)
         else:
             return self._group_categorical(raw_series, target, target_sq, target_int, n_classes, sample_indices, baseline_score)
 
     def _discretize_numeric(self, numeric_values, target, target_sq, target_int, n_classes, 
-                           max_bins, min_samples, sample_indices, sample_mask_full, baseline_score):
+                           max_bins, min_samples, sample_indices, sample_mask_full, baseline_score, feature_name="unknown"):
         # ... Implementation from core.py ...
         valid_mask = ~np.isnan(numeric_values)
         if not np.any(valid_mask): 
@@ -211,7 +215,12 @@ class Discretizer(BaseEstimator, TransformerMixin):
                         codes_sample, t_screen, tsq_screen, t_int_screen, n_classes, int(codes_sample.max()) + 1
                     )
                     candidates.append((score_sample, method, n_bins, r, rule))
-                except Exception: continue
+                except (ValueError, np.linalg.LinAlgError) as e:
+                    logger.debug(f"Discretization candidate failed for feature {feature_name} with method {method}, bins {n_bins}: {e}")
+                    continue
+                except Exception as e:
+                    logger.warning(f"Unexpected error in discretization screening for feature {feature_name}, method {method}: {e}")
+                    continue
 
         if not candidates:
             return None, baseline_score, 1, "no_candidates", None
