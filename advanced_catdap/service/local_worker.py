@@ -25,21 +25,32 @@ def update_status(job_file: Path, status: str, result=None, progress=None, error
     if progress: data["progress"] = progress
     if error: data["error"] = error
     
+    import time
+    
     # Write to temp then move to ensure atomic read
     tmp_path = job_file.with_suffix(".tmp")
     with open(tmp_path, "w") as f:
         json.dump(data, f, default=str)
     
-    # Simple rename (atomic on POSIX, usually ok on Windows for replace)
-    try:
-        tmp_path.replace(job_file)
-    except FileExistsError:
-        # On Windows, replace might raise if file exists and is locked.
-        # Retry or remove first
-        if job_file.exists():
-            job_file.unlink()
-        tmp_path.rename(job_file)
-
+    # Retry mechanism for Windows file locking issues
+    max_retries = 5
+    for i in range(max_retries):
+        try:
+            tmp_path.replace(job_file)
+            break
+        except (FileExistsError, PermissionError, OSError):
+            if i == max_retries - 1:
+                # Last attempt failed, try force remove if exists
+                try:
+                    if job_file.exists():
+                        job_file.unlink()
+                    tmp_path.rename(job_file)
+                except Exception as e:
+                    print(f"Failed to save status file: {e}")
+                    # Don't crash worker, just log
+            else:
+                time.sleep(0.1 * (i + 1))
+    
 def run_worker(job_id: str, dataset_id: str, params_json: str, data_dir: str):
     job_file = Path(data_dir) / "jobs" / f"{job_id}.json"
     job_file.parent.mkdir(parents=True, exist_ok=True)
