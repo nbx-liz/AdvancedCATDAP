@@ -49,10 +49,15 @@ def get_resource_path(relative_path):
 def run_api_server(port):
     """Run FastAPI Logic"""
     import uvicorn
-    from advanced_catdap.service.api import app
-    # Check if we are in frozen mode to set proper reload config
-    is_frozen = getattr(sys, 'frozen', False)
-    uvicorn.run(app, host="127.0.0.1", port=port, log_level="info", reload=not is_frozen)
+    # In subprocess mode, we run without reload for simplicity
+    # Reload requires import string and causes issues with multiprocessing
+    uvicorn.run(
+        "advanced_catdap.service.api:app",
+        host="127.0.0.1",
+        port=port,
+        log_level="info",
+        reload=False  # Disable reload in subprocess mode
+    )
 
 def run_streamlit_server(api_port, streamlit_port):
     """Run Streamlit Logic"""
