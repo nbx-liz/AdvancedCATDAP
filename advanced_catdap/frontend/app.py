@@ -189,13 +189,15 @@ with st.sidebar:
         target_col = st.selectbox(
             "Target Column",
             col_names,
-            help="The variable you want to predict/analyze"
+            help="The variable you want to predict/analyze",
+            key="sidebar_target_col"
         )
         
         task_type = st.selectbox(
             "Task Type",
             ["auto", "classification", "regression"],
-            help="Auto-detect or specify the task type"
+            help="Auto-detect or specify the task type",
+            key="sidebar_task_type"
         )
         
         # ========================================
@@ -554,7 +556,7 @@ with tab_deepdive:
         if "interaction_details" in res and res["interaction_details"]:
             int_details = res["interaction_details"]
             int_keys = list(int_details.keys())
-            selected_int_key = st.selectbox("Select Interaction Pair", int_keys)
+            selected_int_key = st.selectbox("Select Interaction Pair", int_keys, key="deepdive_interaction_select")
             
             if selected_int_key:
                 i_det = int_details[selected_int_key]
