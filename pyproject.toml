@@ -3,12 +3,12 @@ name = "advanced_catdap"
 version = "0.1.0"
 description = "Advanced Categorical Data Analysis Program (AIC-based variable selection)"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.12"
 dependencies = [
     "matplotlib>=3.10.8",
     "numpy>=2.2.6",
     "pandas>=2.3.3",
-    "scikit-learn>=1.7.2",
+    "scikit-learn>=1.8.0", # Explicit version match if needed, or keep generic
     "seaborn>=0.13.2",
     "pydantic>=2.0",
     "pyarrow>=14.0.0",
@@ -26,6 +26,10 @@ gui = [
     "streamlit>=1.25.0",
     "plotly>=6.5.2",
 ]
+desktop = [
+    "pyinstaller>=6.4.0",
+    "pywebview>=5.0.0",
+]
 all = [
     "fastapi>=0.100.0",
     "uvicorn>=0.20.0",
@@ -33,6 +37,8 @@ all = [
     "httpx>=0.28.1",
     "streamlit>=1.25.0",
     "plotly>=6.5.2",
+    "pyinstaller>=6.4.0",
+    "pywebview>=5.0.0",
 ]
 
 [dependency-groups]
