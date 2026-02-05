@@ -150,31 +150,65 @@ def main():
     # Use creationflags to hide console window of subprocesses if possible
     CREATE_NO_WINDOW = 0x08000000
     
+    # Build environment with proper PYTHONPATH and API_URL
+    env = os.environ.copy()
+    if not getattr(sys, 'frozen', False):
+        # In development mode, ensure the project root is in PYTHONPATH
+        project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        existing_path = env.get('PYTHONPATH', '')
+        env['PYTHONPATH'] = f"{project_root}{os.pathsep}{existing_path}" if existing_path else project_root
+    
+    env['API_URL'] = f"http://127.0.0.1:{api_port}"
+    
     logger.info("Launching API Server...")
     api_proc = subprocess.Popen(
-        api_cmd, 
-        creationflags=CREATE_NO_WINDOW if sys.platform == 'win32' else 0
+        api_cmd,
+        creationflags=CREATE_NO_WINDOW if sys.platform == 'win32' else 0,
+        env=env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE
     )
     
     logger.info("Launching Streamlit Server...")
     st_proc = subprocess.Popen(
-        st_cmd, 
+        st_cmd,
         creationflags=CREATE_NO_WINDOW if sys.platform == 'win32' else 0,
-        env={**os.environ, "API_URL": f"http://127.0.0.1:{api_port}"}
+        env=env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE
     )
     
     # Wait for startup
     if not wait_for_port(api_port):
-        logger.error("API failed to start")
-        api_proc.terminate()
+        logger.error("API failed to start within timeout")
+        # Try to get stderr output for debugging
+        try:
+            api_proc.terminate()
+            stdout, stderr = api_proc.communicate(timeout=5)
+            if stderr:
+                logger.error(f"API stderr: {stderr.decode('utf-8', errors='replace')}")
+            if stdout:
+                logger.info(f"API stdout: {stdout.decode('utf-8', errors='replace')}")
+        except Exception as e:
+            logger.error(f"Error getting API output: {e}")
         st_proc.terminate()
         sys.exit(1)
         
     if not wait_for_port(st_port):
-        logger.error("Streamlit failed to start")
+        logger.error("Streamlit failed to start within timeout")
+        try:
+            st_proc.terminate()
+            stdout, stderr = st_proc.communicate(timeout=5)
+            if stderr:
+                logger.error(f"Streamlit stderr: {stderr.decode('utf-8', errors='replace')}")
+            if stdout:
+                logger.info(f"Streamlit stdout: {stdout.decode('utf-8', errors='replace')}")
+        except Exception as e:
+            logger.error(f"Error getting Streamlit output: {e}")
         api_proc.terminate()
-        st_proc.terminate()
         sys.exit(1)
+    
+    logger.info("Both servers started successfully")
 
     # Launch GUI
     logger.info("Launching WebView...")
