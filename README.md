@@ -14,209 +14,270 @@ It supports both **Classification** and **Regression** tasks and is compatible w
 - **Feature Selection**: Selects top-k features that contribute most to the model quality.
 - **Interpretability**: Provides a detailed `feature_details_` table showing the relationship (counts, target means) for each bin/category.
 - **Scikit-learn Compatible**: Implements `BaseEstimator` and `TransformerMixin` for easy integration into `sklearn.pipeline.Pipeline`.
+- **Web GUI**: Interactive Streamlit-based interface for data upload and analysis.
+- **Windows Desktop App**: Standalone `.exe` with native window (no browser required).
 
-## How It Works
+## Requirements
 
-AdvancedCATDAP optimizes feature engineering by minimizing the **Akaike Information Criterion (AIC)**.
-
-1.  **Univariate Discretization**:
-    - For each feature, it attempts multiple discretization strategies (Decision Trees, Quantile Cuts, Uniform Cuts) with varying numbers of bins.
-    - It selects the discretization that minimizes the AIC of a single-variable model (predicting the target).
-    - If the best AIC is significantly lower than the baseline (null model), the feature is considered informative.
-
-2.  **Feature Selection**:
-    - Features are ranked by their "Delta Score" (Baseline AIC - Feature AIC).
-    - Only the top features (controlled by `top_k`) that improve the model are retained.
-
-3.  **Interaction Discovery**:
-    - The algorithm searches for pairs of selected features.
-    - It creates a new combined feature (Cartesian product of bins) and measures its AIC.
-    - If the combined feature's AIC is lower than the best single feature's AIC (by a significant margin), it flags a significant interaction.
-
-This data-driven approach ensures that features are transformed in a way that maximizes predictive power while penalizing complexity (overfitting).
-
+- **Python**: 3.12 or higher
+- **OS**: Windows (for Desktop App), Linux/macOS (for library usage)
 
 ## Installation
+
 ```bash
 # Using pip
 pip install .
 
 # Using uv (Recommended for development)
-# This will handle dependencies and environment
-uv sync
+uv sync --all-extras
+
+# Install with optional dependencies
+pip install ".[web]"     # FastAPI + Streamlit
+pip install ".[gui]"     # Streamlit + Plotly
+pip install ".[desktop]" # PyInstaller + pywebview
+pip install ".[all]"     # Everything
 ```
 
-## GUI Application (New)
+## Quick Start
 
-AdvancedCATDAP now includes a web-based GUI for easy interaction.
+```python
+import pandas as pd
+from advanced_catdap import AdvancedCATDAP
 
-### Launching the App
+# Load data
+df = pd.read_csv('data.csv')
+
+# Initialize and analyze
+model = AdvancedCATDAP(task_type='classification', verbose=True)
+importances, interactions = model.analyze(df, target_col='target')
+
+# View results
+print("Top Features:\n", importances.head())
+print("Top Interactions:\n", interactions.head())
+
+# Transform data
+df_transformed = model.transform(df)
+```
+
+---
+
+## GUI Application
+
+AdvancedCATDAP includes a web-based GUI for easy interaction.
+
+### Launching the Web App
+
 ```bash
 # Using uv (Recommended)
 uv run scripts/launch_gui.py
 
-# Or manually (ensure dependencies are installed)
+# Or manually
 # Terminal 1: API
 uvicorn advanced_catdap.service.api:app --reload --port 8000
 # Terminal 2: Streamlit
 streamlit run advanced_catdap/frontend/app.py
 ```
 
-### Features
-- **Data Management**: Upload CSV or Parquet files.
-- **Auto-Configuration**: Detects columns and suggests analysis settings.
-- **Interactive Results**: View Feature Importance and Interaction Heatmaps powered by Plotly.
-- **Large Data Support**: Handles datasets up to 1 million rows locally.
-- **Job Caching**: Re-running the same analysis returns instant results.
+### Windows Desktop App (New)
 
-## Usage
+Build and run as a standalone Windows executable:
 
+```powershell
+# Build executable
+uv run --extra all pyinstaller build.spec
 
+# Run the app
+.\dist\AdvancedCATDAP_Native312\AdvancedCATDAP_Native312.exe
 
-### 1. Unified API (Pandas-like)
+# Create installer (requires Inno Setup)
+iscc setup.iss
+```
 
-AdvancedCATDAP uses a unified interface for both **Classification** and **Regression**. You simply specify the `task_type` (or let it auto-detect) and use the `fit()` or `analyze()` methods.
+The desktop app opens in a native window (not browser) and includes:
+- FastAPI backend (auto-started)
+- Streamlit frontend (auto-started)
+- Clean shutdown on window close
 
-**Common Workflow:**
+---
 
-The API is consistent regardless of the task. You primarily switch the `task_type`.
+## Project Structure
 
-**A. Classification Example**
+```
+AdvancedCATDAP/
+├── advanced_catdap/           # Main package
+│   ├── core.py                # AdvancedCATDAP class (main entry point)
+│   ├── config.py              # Configuration constants
+│   ├── visualizer.py          # Plotting utilities
+│   ├── components/            # Core algorithm components
+│   │   ├── discretizer.py     # Discretization strategies
+│   │   ├── scoring.py         # AIC/AICc scoring
+│   │   ├── task_detector.py   # Auto task type detection
+│   │   ├── interaction_searcher.py  # Interaction discovery
+│   │   └── utils.py           # Helper functions
+│   ├── frontend/              # Streamlit UI
+│   │   ├── app.py             # Main Streamlit app
+│   │   └── api_client.py      # API client for frontend
+│   └── service/               # Backend services
+│       ├── api.py             # FastAPI endpoints
+│       ├── analyzer.py        # Analysis orchestration
+│       ├── job_manager.py     # Background job management
+│       ├── dataset_manager.py # Dataset storage
+│       └── schema.py          # Pydantic models
+├── scripts/                   # Utility scripts
+│   ├── launch_gui.py          # Launch web GUI
+│   ├── windows_main.py        # Windows desktop entry point
+│   └── generate_demo_data.py  # Generate sample data
+├── examples/                  # Example scripts
+├── tests/                     # Test suite
+├── build.spec                 # PyInstaller configuration
+└── setup.iss                  # Inno Setup installer script
+```
+
+---
+
+## API Reference
+
+### REST API Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/datasets` | Upload CSV/Parquet file |
+| `GET` | `/datasets/{id}` | Get dataset metadata |
+| `GET` | `/datasets/{id}/preview` | Preview first N rows |
+| `POST` | `/jobs` | Submit analysis job |
+| `GET` | `/jobs/{id}` | Get job status/results |
+| `DELETE` | `/jobs/{id}` | Cancel job |
+
+### Python API
 
 ```python
-import pandas as pd
 from advanced_catdap import AdvancedCATDAP
 
-# 1. Load Data
-df = pd.read_csv('churn_data.csv')
-
-# 2. Initialize
-# task_type='classification' treats the target as categories (or binary).
-# 'save_rules_mode="top_k"' keeps only the most important features.
 model = AdvancedCATDAP(
-    task_type='classification', 
-    verbose=True,
-    save_rules_mode='top_k' 
+    task_type='auto',        # 'classification', 'regression', or 'auto'
+    use_aicc=True,           # Use corrected AIC
+    max_bins=5,              # Max bins for numeric features
+    top_k=20,                # Number of top features to keep
+    delta_threshold=2.0,     # Minimum AIC improvement
+    verbose=True             # Print progress
 )
 
-# 3. Analyze (Fit & Get Importances)
-# 'analyze' calculates AIC scores and finds the best discretization.
+# Fit and analyze
+model.fit(X, y)
+# or
+importances, interactions = model.analyze(df, target_col='target')
+
+# Transform data
+X_transformed = model.transform(X)
+
+# Access results
+model.feature_importances_     # DataFrame
+model.interaction_importances_ # DataFrame
+model.feature_details_         # DataFrame
+model.transform_rules_         # Dict
+```
+
+---
+
+## Usage Examples
+
+### Classification
+
+```python
+from advanced_catdap import AdvancedCATDAP
+
+model = AdvancedCATDAP(task_type='classification', verbose=True)
 importances, interactions = model.analyze(df, target_col='Churn')
 
 print("Top Features:\n", importances.head())
 print("Top Interactions:\n", interactions.head())
-
-# 4. Transform (Apply Discretization Rules)
-# Converts numeric/categorical columns into discrete bins optimized for the target.
-df_transformed = model.transform(df)
 ```
 
-**B. Regression Example**
-
-For regression, the library finds bins that explain the variance in the continuous target.
+### Regression
 
 ```python
-import pandas as pd
-from advanced_catdap import AdvancedCATDAP
-
-# 1. Load Data
-df = pd.read_csv('ltv_data.csv')
-
-# 2. Initialize
-# task_type='regression' treats the target as a continuous value.
-model = AdvancedCATDAP(
-    task_type='regression',
-    verbose=True
-)
-
-# 3. Analyze
-importances, interactions = model.analyze(df, target_col='LTV')
-
-print("Top Drivers of LTV:\n", importances.head())
-
-# 4. Feature Details (Interpretability)
-# Inspect specific bins and their target means (e.g. "Users aged 20-30 have avg LTV of $500")
-if model.feature_details_ is not None:
-    print(model.feature_details_.head(10))
+model = AdvancedCATDAP(task_type='regression', verbose=True)
+importances, interactions = model.analyze(df, target_col='Price')
 ```
 
-### 2. Scikit-Learn API (Pipeline Compatible)
-
-AdvancedCATDAP is fully compatible with Scikit-learn's `fit(X, y)` and `transform(X)` API, making it ideal for Pipelines.
+### Scikit-Learn Pipeline
 
 ```python
 from sklearn.pipeline import Pipeline
 from sklearn.linear_model import LogisticRegression
 
-# Input X (DataFrame) and y (Series/Array)
-X = df.drop(columns=['target'])
-y = df['target']
-
 pipe = Pipeline([
-    # Step 1: Discretize & Engineer Features
-    ('preprocessor', AdvancedCATDAP(task_type='classification', max_bins=5)),
-    # Step 2: Feed into a linear model (which benefits from discretized non-linearities)
+    ('preprocessor', AdvancedCATDAP(task_type='classification')),
     ('model', LogisticRegression())
 ])
-
 pipe.fit(X, y)
 ```
 
-### 3. Detailed Feature Analysis
-
-After fitting, you can inspect `feature_details_` to understand *why* a feature is important. It shows the binned ranges and the average target value for each bin.
+### Visualization
 
 ```python
-# Assuming model is fitted
-details = model.feature_details_
+from advanced_catdap.visualizer import plot_importance, plot_interaction_heatmap
 
-# Example Output:
-#        Feature         Bin_Label  Count  Target_Mean
-# 0          Age  [18.000, 41.000]    553     0.094033
-# 1          Age  [42.000, 46.000]    160     0.031250
-# ...
-```
-
-- **Bin_Label**: The numeric range (e.g. `(0.1, 10.5]`) or category name.
-- **Count**: Number of samples in that bin.
-- **Target_Mean**: Average target value (Regression) or Positive Class Probability (Binary Classification).
-
-
-
-### 4. Visualization
-
-(Requires `matplotlib` / `seaborn` installed separately if not included in deps)
-
-```python
-from advanced_catdap import plot_importance, plot_interaction_heatmap
-
-# Visualize Feature Importances
 plot_importance(model.feature_importances_)
-
-# Visualize Interaction Heatmap
 plot_interaction_heatmap(model.interaction_importances_)
 ```
 
-## Examples
+---
 
-Check the `examples/` directory for ready-to-run scripts:
+## Development
 
-- `01_basic_classification.py`: Complete classification workflow.
-- `02_basic_regression.py`: Complete regression workflow.
-- `03_sklearn_pipeline.py`: Pipeline integration example.
-- `04_visualization.py`: Visualization demo.
-- `05_error_handling.py`: Handling edge cases.
+### Running Tests
 
-## Parameters
+```bash
+# Run all tests
+uv run pytest
+
+# With coverage
+uv run pytest --cov=advanced_catdap --cov-report=term-missing
+
+# Current coverage: 91%
+```
+
+### Code Quality
+
+```bash
+# Format code
+uv run black advanced_catdap tests
+
+# Type checking
+uv run mypy advanced_catdap
+```
+
+---
+
+## Parameters Reference
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `task_type` | str | `'auto'` | `'classification'`, `'regression'`, or `'auto'` (detects based on target). |
-| `use_aicc` | bool | `True` | Use AICc (corrected AIC) instead of raw AIC to punish complexity more in small samples. |
-| `max_bins` | int | `5` | Maximum number of bins for numeric discretization. |
-| `top_k` | int | `20` | Number of top features to keep/transform. |
-| `save_rules_mode` | str | `'top_k'` | `'top_k'` (save only selected features) or `'all_valid'` (save all that improve AIC). |
+| `task_type` | str | `'auto'` | `'classification'`, `'regression'`, or `'auto'` |
+| `use_aicc` | bool | `True` | Use AICc (corrected AIC) for small samples |
+| `max_bins` | int | `5` | Maximum bins for numeric discretization |
+| `top_k` | int | `20` | Number of top features to keep |
+| `delta_threshold` | float | `2.0` | Minimum AIC improvement to select feature |
+| `save_rules_mode` | str | `'top_k'` | `'top_k'` or `'all_valid'` |
+| `min_cat_fraction` | float | `0.01` | Minimum category frequency |
+| `max_categories` | int | `20` | Max categories before grouping |
+
+---
+
+## How It Works
+
+AdvancedCATDAP optimizes feature engineering by minimizing the **Akaike Information Criterion (AIC)**.
+
+1. **Univariate Discretization**: For each feature, tries multiple strategies (Trees, Quantiles, Uniform) and selects the one minimizing AIC.
+
+2. **Feature Selection**: Ranks features by Delta Score (Baseline AIC - Feature AIC) and keeps top-k.
+
+3. **Interaction Discovery**: Tests feature pairs and flags those with significant AIC improvement.
+
+---
 
 ## License
 
 MIT
+
