@@ -26,6 +26,10 @@ gui = [
     "streamlit>=1.25.0",
     "plotly>=6.5.2",
 ]
+desktop = [
+    "pywebview>=5.1",
+    "pyinstaller>=6.4.0",
+]
 all = [
     "fastapi>=0.100.0",
     "uvicorn>=0.20.0",
@@ -33,6 +37,8 @@ all = [
     "httpx>=0.28.1",
     "streamlit>=1.25.0",
     "plotly>=6.5.2",
+    "pywebview>=5.1",
+    "pyinstaller>=6.4.0",
 ]
 
 [dependency-groups]
