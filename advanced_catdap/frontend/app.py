@@ -452,19 +452,32 @@ with tab_deepdive:
                 view_mode = st.radio(
                     "View Mode",
                     ["Top 5 Drivers", "Select Feature"],
-                    horizontal=True
+                    horizontal=True,
+                    key="deepdive_view_mode"
                 )
             
+            # Always render selectbox (hidden if not needed) to avoid rerun issues
+            avail_feats = sorted(list(res["feature_details"].keys())) if res.get("feature_details") else []
+            
+            with col_select:
+                if view_mode == "Select Feature" and avail_feats:
+                    selected_feat = st.selectbox(
+                        "Select Feature",
+                        avail_feats,
+                        key="deepdive_feature_select"
+                    )
+                else:
+                    selected_feat = None
+                    if view_mode == "Select Feature":
+                        st.info("No feature details available")
+            
+            # Determine features to show
             features_to_show = []
             if view_mode == "Top 5 Drivers":
                 if "Delta_Score" in df_fi.columns and "Feature" in df_fi.columns:
                     features_to_show = df_fi.sort_values("Delta_Score", ascending=False).head(5)["Feature"].tolist()
-            else:
-                with col_select:
-                    avail_feats = sorted(list(res["feature_details"].keys()))
-                    selected_feat = st.selectbox("Select Feature", avail_feats)
-                    if selected_feat:
-                        features_to_show = [selected_feat]
+            elif selected_feat:
+                features_to_show = [selected_feat]
             
             # Display feature details
             for feat in features_to_show:
