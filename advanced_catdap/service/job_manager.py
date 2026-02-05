@@ -48,16 +48,29 @@ class JobManager:
         self.repository.save_job(job_id, dataset_id, "PENDING", params_json)
         
         # Prepare execution
-        script_path = Path(__file__).parent / "local_worker.py"
-        cmd = [
-            sys.executable,
-            str(script_path),
-            "--job-id", job_id,
-            "--dataset-id", dataset_id,
-            "--params", params_json,
-            "--db-path", str(self.db_path),
-            "--data-dir", str(self.data_dir)
-        ]
+        if getattr(sys, 'frozen', False):
+            # Running as compiled exe
+            cmd = [
+                sys.executable,
+                "--worker",
+                "--job-id", job_id,
+                "--dataset-id", dataset_id,
+                "--params", params_json,
+                "--db-path", str(self.db_path),
+                "--data-dir", str(self.data_dir)
+            ]
+        else:
+            # Running as script
+            script_path = Path(__file__).parent / "local_worker.py"
+            cmd = [
+                sys.executable,
+                str(script_path),
+                "--job-id", job_id,
+                "--dataset-id", dataset_id,
+                "--params", params_json,
+                "--db-path", str(self.db_path),
+                "--data-dir", str(self.data_dir)
+            ]
         
         log_dir = self.data_dir / "jobs_logs"
         log_file = log_dir / f"{job_id}.log"

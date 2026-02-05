@@ -5,7 +5,7 @@
 #define MyAppVersion "0.1.0"
 #define MyAppPublisher "AdvancedCATDAP Team"
 #define MyAppURL "https://github.com/nbx-liz/AdvancedCATDAP"
-#define MyAppExeName "AdvancedCATDAP.exe"
+#define MyAppExeName "AdvancedCATDAP_Native312.exe"
 
 [Setup]
 ; NOTE: The value of AppId uniquely identifies this application. Do not use the same AppId value in installers for other applications.
@@ -23,7 +23,7 @@ DisableProgramGroupPage=yes
 ; Remove the following line to run in administrative install mode (install for all users.)
 PrivilegesRequired=lowest
 OutputDir=installer
-OutputBaseFilename=AdvancedCATDAP_Setup_{#MyAppVersion}
+OutputBaseFilename=AdvancedCATDAP_Native312_Setup_{#MyAppVersion}
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
@@ -36,9 +36,9 @@ Name: "japanese"; MessagesFile: "compiler:Languages\Japanese.isl"
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
 [Files]
-; IMPORTANT: Run pyinstaller first to generate dist/AdvancedCATDAP
-Source: "dist\AdvancedCATDAP\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
-Source: "dist\AdvancedCATDAP\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+; IMPORTANT: Run pyinstaller first to generate dist/AdvancedCATDAP_Native312
+Source: "dist\AdvancedCATDAP_Native312\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
+Source: "dist\AdvancedCATDAP_Native312\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 ; NOTE: Don't use "Flags: ignoreversion" on any shared system files
 
 [Icons]

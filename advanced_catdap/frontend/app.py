@@ -9,9 +9,10 @@ from advanced_catdap.service.schema import AnalysisParams
 # Page Config
 st.set_page_config(page_title="AdvancedCATDAP", layout="wide")
 
+import os
 # Initialize Client
 # In a real app, URL might come from env var
-client = APIClient(base_url="http://localhost:8000")
+client = APIClient(base_url=os.environ.get("API_URL", "http://localhost:8000"))
 
 st.title("AdvancedCATDAP: Exploratory Analysis")
 
@@ -70,7 +71,7 @@ with tab2:
         try:
             preview_data = client.get_preview(st.session_state.dataset_id)
             # Deprecation fix: use_container_width -> width='stretch'
-            st.dataframe(pd.DataFrame(preview_data), width="stretch")
+            st.dataframe(pd.DataFrame(preview_data), width="stretch") # Replaced use_container_width=True
         except Exception as e:
             st.warning(f"Could not load preview: {e}")
     else:
@@ -129,7 +130,7 @@ with tab1:
             disabled=["Column", "Type", "Missing", "Unique"],
             hide_index=True,
             key=f"editor_{target_col}", # Reset on target change
-            use_container_width=True,
+            # use_container_width=True, # Deprecated
             height=300
         )
         
@@ -194,7 +195,7 @@ with tab1:
                     st.error(f"Job Failed: {info.get('error')}")
                 else:
                     # Still running
-                    progress = info.get("progress", {})
+                    progress = info.get("progress") or {}
                     st.info(f"Processing... {progress.get('stage', '')}")
                     time.sleep(2)
                     st.rerun()
@@ -321,7 +322,7 @@ with tab1:
                                 fmt = "{:.2f}" if is_regression else "{:.2%}"
                                 st.dataframe(
                                     df_plot.style.format({target_label: fmt}), 
-                                    use_container_width=True,
+                                    width="stretch", # Replaced use_container_width=True
                                     height=300
                                 )
 
