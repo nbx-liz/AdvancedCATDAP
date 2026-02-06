@@ -16,6 +16,7 @@ import json
 
 from advanced_catdap.frontend.api_client import APIClient
 from advanced_catdap.service.schema import AnalysisParams
+from advanced_catdap.service.exporter import ResultExporter
 
 # Initialize API client
 API_URL = os.environ.get("API_URL", "http://127.0.0.1:8000")
@@ -94,7 +95,10 @@ def create_sidebar_content():
         html.Div(id='upload-status', className="mb-3 small"),
         
         # Dynamic Content (Dropdowns etc)
-        html.Div(id='sidebar-dynamic-content')
+        html.Div(id='sidebar-dynamic-content'),
+        
+        # Export Area
+        html.Div(id='sidebar-export-area', className="mt-3")
     ])
 
 def render_dashboard_tab(result, meta, theme=None): # theme arg kept for compatibility but unused
@@ -353,6 +357,7 @@ app.layout = dbc.Container([
     dcc.Store(id='store-deepdive-state', data={'mode': 'top5', 'feature': None, 'interaction': None}, storage_type='memory'),
     dcc.Store(id='theme-store', data='dark', storage_type='local'), # Force Dark
     dcc.Interval(id='job-poll-interval', interval=2000, disabled=True),
+    dcc.Download(id="download-report"),
     
     # 1. Header
     dbc.Row([
@@ -523,6 +528,31 @@ def poll_job(n, job_id):
             return dash.no_update, False, dbc.Alert([dbc.Spinner(size="sm", spinner_class_name="me-2"), stage], color="info", className="glass-card border-info")
     except Exception as e:
          return None, True, dbc.Alert(f"polling Error: {e}", color="danger")
+
+@callback(
+    Output('sidebar-export-area', 'children'),
+    Input('store-analysis-result', 'data'),
+    prevent_initial_call=True
+)
+def show_export_button(result):
+    if not result: return ""
+    return dbc.Button([
+        html.I(className="bi bi-file-earmark-excel me-2"),
+        "Export Excel Report"
+    ], id='btn-export', color="success", className="w-100 neon-button-green")
+
+@callback(
+    Output("download-report", "data"),
+    Input("btn-export", "n_clicks"),
+    State("store-analysis-result", "data"),
+    State("store-dataset-meta", "data"),
+    prevent_initial_call=True
+)
+def download_report(n_clicks, result, meta):
+    if not n_clicks or not result: return dash.no_update
+    
+    excel_io = ResultExporter.generate_excel_report(result, meta)
+    return dcc.send_bytes(excel_io.getvalue(), "AdvancedCATDAP_Report.xlsx")
 
 @callback(
     Output('page-content', 'children'),

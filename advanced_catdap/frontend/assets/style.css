@@ -272,3 +272,38 @@ option {
     background-color: rgba(255, 255, 255, 0.1);
     color: white;
 }
+
+/* Neon Buttons */
+.neon-button {
+    background-color: transparent !important;
+    border: 2px solid var(--neon-cyan) !important;
+    color: var(--neon-cyan) !important;
+    font-weight: 600 !important;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    transition: all 0.3s ease !important;
+    box-shadow: 0 0 5px rgba(0, 243, 255, 0.2);
+}
+
+.neon-button:hover {
+    background-color: var(--neon-cyan) !important;
+    color: #000 !important;
+    box-shadow: 0 0 20px rgba(0, 243, 255, 0.5);
+}
+
+.neon-button-green {
+    background-color: transparent !important;
+    border: 2px solid var(--neon-green) !important;
+    color: var(--neon-green) !important;
+    font-weight: 600 !important;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    transition: all 0.3s ease !important;
+    box-shadow: 0 0 5px rgba(10, 255, 10, 0.2);
+}
+
+.neon-button-green:hover {
+    background-color: var(--neon-green) !important;
+    color: #000 !important;
+    box-shadow: 0 0 20px rgba(10, 255, 10, 0.5);
+}
