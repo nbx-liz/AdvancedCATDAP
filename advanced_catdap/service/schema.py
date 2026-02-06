@@ -42,7 +42,9 @@ class FeatureDetail(BaseModel):
 class AnalysisParams(BaseModel):
     target_col: str
     candidates: Optional[List[str]] = None
+    task_type: str = "auto"
     max_bins: int = 5
+    min_samples_per_bin: int = 10
     top_k: int = 20
     delta_threshold: float = 0.0
     force_categoricals: Optional[List[str]] = None

@@ -1,4 +1,5 @@
 import streamlit as st
+import streamlit.components.v1 as components
 import pandas as pd
 import time
 import plotly.express as px
@@ -8,6 +9,14 @@ from advanced_catdap.service.schema import AnalysisParams
 import os
 import logging
 from datetime import datetime
+
+def plotly_html(fig, height=400):
+    """
+    Render Plotly figure as HTML component instead of st.plotly_chart.
+    This bypasses potential issues with Streamlit's Plotly integration.
+    """
+    html = fig.to_html(include_plotlyjs='cdn', full_html=False, config={'displayModeBar': False})
+    components.html(html, height=height, scrolling=False)
 
 # Setup debug logging to file
 LOG_FILE = os.path.join(os.path.dirname(__file__), "debug.log")
@@ -380,10 +389,10 @@ debug_log("After tabs creation")
 # ============================================================
 # Fragment for Dashboard content (prevents rerun when other tabs change)
 # ============================================================
-@st.fragment
-def dashboard_fragment():
-    """Dashboard content wrapped in fragment to prevent cross-tab reruns."""
-    debug_log("Dashboard fragment started")
+# Dashboard content function (no fragment - full rerun is fine for stability)
+def dashboard_content():
+    """Dashboard content - renders charts for feature importance and interactions."""
+    debug_log("Dashboard content started")
     if not st.session_state.analysis_result:
         st.info("🚀 Click **Run Analysis** in the sidebar to see results.")
         debug_log("Dashboard: No results, showing info message")
@@ -427,8 +436,8 @@ def dashboard_fragment():
                     coloraxis_showscale=False,
                     margin=dict(l=0, r=20, t=20, b=0)
                 )
-                debug_log("Dashboard: Calling st.plotly_chart for bar chart")
-                st.plotly_chart(fig_bar, use_container_width=True)
+                debug_log("Dashboard: Calling plotly_html for bar chart")
+                plotly_html(fig_bar, height=420)
                 debug_log("Dashboard: Bar chart rendered successfully")
             else:
                 st.warning("Missing required columns for visualization.")
@@ -466,34 +475,27 @@ def dashboard_fragment():
                     height=400,
                     margin=dict(l=0, r=0, t=20, b=0)
                 )
-                debug_log("Dashboard: Calling st.plotly_chart for heatmap")
-                st.plotly_chart(fig_heat, use_container_width=True)
+                debug_log("Dashboard: Calling plotly_html for heatmap")
+                plotly_html(fig_heat, height=420)
                 debug_log("Dashboard: Heatmap rendered successfully")
     
-    debug_log("Dashboard fragment completed")
+    debug_log("Dashboard content completed")
 
 # ============================================================
-# Tab 1: Dashboard - Use fragment to isolate from other tabs
+# Tab 1: Dashboard
 # ============================================================
 with tab_dashboard:
-    debug_log("Dashboard tab started - calling fragment")
-    dashboard_fragment()
-    debug_log("Dashboard tab - fragment call returned")
+    debug_log("Dashboard tab started")
+    dashboard_content()
+    debug_log("Dashboard tab completed")
 
 # ============================================================
-# Tab 2: Deep Dive - Fragment to isolate from Dashboard renders
+# Tab 2: Deep Dive
 # ============================================================
-@st.fragment
-def deepdive_fragment():
-    """Deep Dive content wrapped in fragment to prevent chart re-renders."""
-    debug_log("Deep Dive fragment started")
-    
-    # Aggressive cleanup to prevent memory leak from accumulated Matplotlib figures
-    import matplotlib.pyplot as plt
-    import gc
-    plt.close('all')
-    gc.collect()
-    debug_log("Deep Dive: Matplotlib cleanup completed")
+# Deep Dive content function (no fragment - full rerun handles DOM cleanup properly)
+def deepdive_content():
+    """Deep Dive content - detailed feature analysis with interactive charts."""
+    debug_log("Deep Dive content started")
     
     if not st.session_state.analysis_result:
         st.info("🚀 Click **Run Analysis** in the sidebar to see results.")
@@ -523,38 +525,31 @@ def deepdive_fragment():
         avail_feats = sorted(list(res["feature_details"].keys())) if res.get("feature_details") else []
         debug_log(f"Deep Dive: Found {len(avail_feats)} features")
         
-        # Use session state for view mode tracking (initialized outside fragment)
+        # Use session state for view mode tracking
         if "deepdive_mode" not in st.session_state:
             st.session_state.deepdive_mode = "top5"
         
         debug_log(f"Deep Dive: Current mode = {st.session_state.deepdive_mode}")
         
-        # Callback functions to keep reruns inside fragment
-        def set_top5_mode():
-            st.session_state.deepdive_mode = "top5"
-            debug_log("Deep Dive: Callback - set mode to top5")
-        
-        def set_select_mode():
-            st.session_state.deepdive_mode = "select"
-            debug_log("Deep Dive: Callback - set mode to select")
-        
-        # Simple buttons for mode selection with on_click callbacks
+        # Simple radio buttons for mode selection (no callbacks needed without fragments)
         st.write("**View Mode:**")
-        col_btn1, col_btn2, col_feat = st.columns([0.15, 0.15, 0.7])
+        col_mode, col_feat = st.columns([0.3, 0.7])
         
-        with col_btn1:
-            debug_log("Deep Dive: Rendering Top 5 button")
-            st.button("Top 5 Drivers", key="btn_top5", 
-                     type="primary" if st.session_state.deepdive_mode == "top5" else "secondary",
-                     on_click=set_top5_mode)
+        with col_mode:
+            mode = st.radio(
+                "Select view mode",
+                ["Top 5 Drivers", "Select Feature"],
+                index=0 if st.session_state.deepdive_mode == "top5" else 1,
+                horizontal=True,
+                label_visibility="collapsed",
+                key="deepdive_mode_radio"
+            )
+            # Only update session state when value ACTUALLY changes (prevents rerun cascade)
+            new_mode = "top5" if mode == "Top 5 Drivers" else "select"
+            if st.session_state.deepdive_mode != new_mode:
+                st.session_state.deepdive_mode = new_mode
         
-        with col_btn2:
-            debug_log("Deep Dive: Rendering Select Feature button")
-            st.button("Select Feature", key="btn_select",
-                     type="primary" if st.session_state.deepdive_mode == "select" else "secondary",
-                     on_click=set_select_mode)
-        
-        debug_log(f"Deep Dive: After buttons, mode = {st.session_state.deepdive_mode}")
+        debug_log(f"Deep Dive: After mode selection, mode = {st.session_state.deepdive_mode}")
         
         with col_feat:
             if st.session_state.deepdive_mode == "select" and avail_feats:
@@ -583,11 +578,6 @@ def deepdive_fragment():
             features_to_show = []
         
         debug_log(f"Deep Dive: Features to show = {features_to_show}")
-        
-        # Generate unique key prefix for this render (forces chart recreation)
-        import uuid
-        render_id = str(uuid.uuid4())[:8]
-        debug_log(f"Deep Dive: Render ID = {render_id}")
         
         # Display feature details with simplified charts
         for feat in features_to_show:
@@ -626,41 +616,36 @@ def deepdive_fragment():
                     c_plot, c_table = st.columns([0.6, 0.4])
                     
                     with c_plot:
-                        debug_log(f"Deep Dive: Creating Matplotlib figure for '{feat}'")
-                        # Use Matplotlib instead of Plotly to avoid WebView2 issues
-                        import matplotlib.pyplot as plt
-                        import matplotlib
-                        matplotlib.use('Agg')  # Non-interactive backend
-                        
-                        fig_mpl, ax1 = plt.subplots(figsize=(8, 4))
-                        
-                        # Bar chart for sample counts
-                        x_pos = range(len(bin_labels))
-                        bars = ax1.bar(x_pos, df_plot["Sample Count"], color='#E0E0E0', label='Sample Count')
-                        ax1.set_ylabel('Sample Count', color='gray')
-                        ax1.tick_params(axis='y', labelcolor='gray')
-                        ax1.set_xticks(x_pos)
-                        ax1.set_xticklabels(bin_labels, rotation=45, ha='right', fontsize=8)
-                        
-                        # Line chart for target rate on secondary axis
-                        ax2 = ax1.twinx()
-                        ax2.plot(x_pos, df_plot[target_label], color='#FF4B4B', marker='o', linewidth=2, label=target_label)
-                        ax2.set_ylabel(target_label, color='#FF4B4B')
-                        ax2.tick_params(axis='y', labelcolor='#FF4B4B')
-                        
-                        # Title and legend
-                        ax1.set_title(f'{feat} Impact', fontweight='bold', fontsize=12)
-                        
-                        # Combine legends
-                        lines1, labels1 = ax1.get_legend_handles_labels()
-                        lines2, labels2 = ax2.get_legend_handles_labels()
-                        ax1.legend(lines1 + lines2, labels1 + labels2, loc='upper right', fontsize=8)
-                        
-                        plt.tight_layout()
-                        
-                        debug_log(f"Deep Dive: Calling st.pyplot for '{feat}'")
-                        st.pyplot(fig_mpl)
-                        plt.close(fig_mpl)  # Clean up
+                        debug_log(f"Deep Dive: Creating Plotly figure for '{feat}'")
+                        # Dual-axis chart: bars for counts, line for target rate
+                        fig_dual = go.Figure()
+                        fig_dual.add_trace(go.Bar(
+                            x=df_plot["Value Range"],
+                            y=df_plot["Sample Count"],
+                            name="Sample Count",
+                            marker_color="#E0E0E0"
+                        ))
+                        fig_dual.add_trace(go.Scatter(
+                            x=df_plot["Value Range"],
+                            y=df_plot[target_label],
+                            name=target_label,
+                            yaxis="y2",
+                            mode="lines+markers",
+                            line=dict(color="#FF4B4B", width=3)
+                        ))
+                        fig_dual.update_layout(
+                            title=f"<b>{feat}</b> Impact",
+                            title_font_family="Inter",
+                            hovermode="x unified",
+                            yaxis=dict(title="Sample Count"),
+                            yaxis2=dict(title=target_label, overlaying="y", side="right", showgrid=False),
+                            legend=dict(orientation="h", y=1.1),
+                            template="plotly_white",
+                            height=350,
+                            margin=dict(l=0, r=0, t=40, b=0)
+                        )
+                        debug_log(f"Deep Dive: Calling plotly_html for '{feat}'")
+                        plotly_html(fig_dual, height=370)
                         debug_log(f"Deep Dive: Chart rendered for '{feat}'")
                     
                     with c_table:
@@ -672,86 +657,72 @@ def deepdive_fragment():
                             use_container_width=True
                         )
         
-        if st.session_state.deepdive_mode == "top5":
-            st.divider()
-            st.subheader("Interaction Analysis")
+        # Interaction Analysis - always shown (no mode-based filtering)
+        st.divider()
+        st.subheader("Interaction Analysis")
         
-            if "interaction_details" in res and res["interaction_details"]:
-                int_details = res["interaction_details"]
-                int_keys = list(int_details.keys())
-                selected_int_key = st.selectbox("Select Interaction Pair", int_keys, key="deepdive_interaction_select")
+        if "interaction_details" in res and res["interaction_details"]:
+            int_details = res["interaction_details"]
+            int_keys = list(int_details.keys())
+            selected_int_key = st.selectbox("Select Interaction Pair", int_keys, key="deepdive_interaction_select")
+            
+            if selected_int_key:
+                i_det = int_details[selected_int_key]
                 
-                if selected_int_key:
-                    i_det = int_details[selected_int_key]
-                    
-                    mode_val = res.get("mode", "").upper()
-                    is_regression = mode_val == "REGRESSION"
-                    metric_label = "Average Value" if is_regression else "Target Rate"
-                    
-                    st.caption(f"Impact of **{i_det['feature_1']}** × **{i_det['feature_2']}** on {metric_label}")
-                    
-                    # Use Matplotlib heatmap instead of Plotly to avoid WebView2 freeze
-                    debug_log(f"Deep Dive: Creating Matplotlib heatmap for interaction")
-                    import matplotlib.pyplot as plt
-                    import matplotlib
-                    matplotlib.use('Agg')
-                    import numpy as np
-                    
-                    fig_heat, ax = plt.subplots(figsize=(10, 6))
-                    means_array = np.array(i_det['means'])
-                    
-                    im = ax.imshow(means_array, cmap='Blues', aspect='auto')
-                    
-                    # Set ticks and labels
-                    ax.set_xticks(range(len(i_det['bin_labels_2'])))
-                    ax.set_yticks(range(len(i_det['bin_labels_1'])))
-                    ax.set_xticklabels(i_det['bin_labels_2'], rotation=45, ha='right', fontsize=8)
-                    ax.set_yticklabels(i_det['bin_labels_1'], fontsize=8)
-                    
-                    # Add colorbar
-                    cbar = plt.colorbar(im, ax=ax)
-                    cbar.set_label(metric_label, fontsize=10)
-                    
-                    # Title and labels
-                    ax.set_title(f"{metric_label} by {i_det['feature_1']} vs {i_det['feature_2']}", fontweight='bold')
-                    ax.set_xlabel(i_det['feature_2'])
-                    ax.set_ylabel(i_det['feature_1'])
-                    
-                    plt.tight_layout()
-                    
-                    debug_log(f"Deep Dive: Calling st.pyplot for interaction heatmap")
-                    st.pyplot(fig_heat)
-                    plt.close(fig_heat)
-                    debug_log(f"Deep Dive: Interaction heatmap rendered")
-                    
-                    with st.expander("📋 Detailed Statistics"):
-                        c1, c2 = st.columns(2)
-                        with c1:
-                            st.write("**Counts**")
-                            st.dataframe(pd.DataFrame(
-                                i_det['counts'],
-                                index=i_det['bin_labels_1'],
-                                columns=i_det['bin_labels_2']
-                            ))
-                        with c2:
-                            st.write(f"**{metric_label}s**")
-                            st.dataframe(pd.DataFrame(
-                                i_det['means'],
-                                index=i_det['bin_labels_1'],
-                                columns=i_det['bin_labels_2']
-                            ))
-            else:
-                ii_data = res.get("interaction_importances", [])
-                if not ii_data:
-                    st.info("No significant interactions found.")
+                mode_val = res.get("mode", "").upper()
+                is_regression = mode_val == "REGRESSION"
+                metric_label = "Average Value" if is_regression else "Target Rate"
+                
+                st.caption(f"Impact of **{i_det['feature_1']}** × **{i_det['feature_2']}** on {metric_label}")
+                
+                # Plotly heatmap for interaction visualization
+                debug_log("Deep Dive: Creating Plotly heatmap for interaction")
+                fig_heat = go.Figure(data=go.Heatmap(
+                    z=i_det['means'],
+                    x=i_det['bin_labels_2'],
+                    y=i_det['bin_labels_1'],
+                    colorscale='Blues',
+                    colorbar=dict(title=metric_label)
+                ))
+                fig_heat.update_layout(
+                    title=f"{metric_label} by {i_det['feature_1']} vs {i_det['feature_2']}",
+                    xaxis_title=i_det['feature_2'],
+                    yaxis_title=i_det['feature_1'],
+                    template="plotly_white",
+                    height=400
+                )
+                debug_log("Deep Dive: Calling plotly_html for interaction heatmap")
+                plotly_html(fig_heat, height=420)
+                debug_log("Deep Dive: Interaction heatmap rendered")
+                
+                with st.expander("📋 Detailed Statistics"):
+                    c1, c2 = st.columns(2)
+                    with c1:
+                        st.write("**Counts**")
+                        st.dataframe(pd.DataFrame(
+                            i_det['counts'],
+                            index=i_det['bin_labels_1'],
+                            columns=i_det['bin_labels_2']
+                        ))
+                    with c2:
+                        st.write(f"**{metric_label}s**")
+                        st.dataframe(pd.DataFrame(
+                            i_det['means'],
+                            index=i_det['bin_labels_1'],
+                            columns=i_det['bin_labels_2']
+                        ))
+        else:
+            ii_data = res.get("interaction_importances", [])
+            if not ii_data:
+                st.info("No significant interactions found.")
     
-    debug_log("Deep Dive fragment completed")
+    debug_log("Deep Dive content completed")
 
-# Call Deep Dive fragment inside tab
+# Deep Dive tab
 with tab_deepdive:
-    debug_log("Deep Dive tab started - calling fragment")
-    deepdive_fragment()
-    debug_log("Deep Dive tab - fragment call returned")
+    debug_log("Deep Dive tab started")
+    deepdive_content()
+    debug_log("Deep Dive tab completed")
 
 # ============================================================
 # Tab 3: Simulator (Coming Soon)

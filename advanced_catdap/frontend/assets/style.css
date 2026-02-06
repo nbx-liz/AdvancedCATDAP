@@ -1,0 +1,79 @@
+/* Light Theme Defaults */
+:root {
+    --bg-color: #ffffff;
+    --text-color: #2c3e50;
+    --sidebar-bg: #f8f9fa;
+    --card-bg: #ffffff;
+    --border-color: #e0e0e0;
+}
+
+/* Dark Theme Overrides */
+[data-theme="dark"] {
+    --bg-color: #1a1a1a;
+    --text-color: #e0e0e0;
+    --sidebar-bg: #2d2d2d;
+    --card-bg: #333333;
+    --border-color: #444444;
+}
+
+body {
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    transition: background-color 0.3s, color 0.3s;
+}
+
+.sidebar {
+    background-color: var(--sidebar-bg) !important;
+    border-right: 1px solid var(--border-color);
+}
+
+.kpi-card {
+    background-color: var(--card-bg) !important;
+    border: 1px solid var(--border-color) !important;
+    color: var(--text-color) !important;
+}
+
+.kpi-value {
+    color: var(--text-color) !important;
+}
+
+.main-content {
+    background-color: var(--bg-color);
+}
+
+/* Dropdown (React-Select) Styling for Dark Mode */
+[data-theme="dark"] .Select-control {
+    background-color: #333333;
+    border-color: #444444;
+}
+[data-theme="dark"] .Select-value-label {
+    color: #e0e0e0 !important;
+}
+[data-theme="dark"] .Select-menu-outer {
+    background-color: #333333;
+    border-color: #444444;
+}
+[data-theme="dark"] .Select-option {
+    background-color: #333333;
+    color: #e0e0e0;
+}
+[data-theme="dark"] .Select-option.is-focused {
+    background-color: #444444;
+}
+[data-theme="dark"] .form-control, [data-theme="dark"] .form-select {
+    background-color: #333333;
+    border-color: #444444;
+    color: #e0e0e0;
+}
+[data-theme="dark"] .nav-tabs .nav-link.active {
+    background-color: #333333;
+    border-color: #444444;
+    color: #fff;
+    border-bottom-color: #333333;
+}
+[data-theme="dark"] .nav-tabs .nav-link {
+    color: #aaa;
+}
+[data-theme="dark"] .nav-tabs {
+    border-bottom-color: #444444;
+}
