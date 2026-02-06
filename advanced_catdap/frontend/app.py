@@ -539,8 +539,7 @@ with tab_deepdive:
                                 height=350,
                                 margin=dict(l=0, r=0, t=40, b=0)
                             )
-                            # Use key to prevent re-creation
-                            st.plotly_chart(fig_dual, use_container_width=True, key=f"chart_{feat}")
+                            st.plotly_chart(fig_dual, use_container_width=True)
                         
                         with c_table:
                             st.caption("Statistics")

@@ -215,41 +215,56 @@ def main():
     
     logger.info("Both servers started successfully")
 
-    # Launch in system browser instead of WebView
-    # WebView has compatibility issues with Streamlit's interactive widgets
-    import webbrowser
+    # Launch WebView with EdgeChromium (WebView2) for better compatibility
+    logger.info("Launching WebView...")
+    
     url = f'http://localhost:{st_port}'
-    logger.info(f"Opening browser at {url}")
-    webbrowser.open(url)
     
-    # Keep the process running until user closes it
-    print("\n" + "="*50)
-    print("AdvancedCATDAP is running!")
-    print(f"Open in browser: {url}")
-    print("="*50)
-    print("\nPress Ctrl+C to stop the servers...")
-    
-    try:
-        # Wait for user interrupt
-        while True:
-            time.sleep(1)
-            # Check if servers are still running
-            if api_proc.poll() is not None:
-                logger.error("API server stopped unexpectedly")
-                break
-            if st_proc.poll() is not None:
-                logger.error("Streamlit server stopped unexpectedly")
-                break
-    except KeyboardInterrupt:
-        print("\nShutting down...")
-    finally:
-        logger.info("Stopping servers...")
+    def on_closing():
+        logger.info("Window closing, killing servers...")
         api_proc.terminate()
         st_proc.terminate()
-        api_proc.wait(timeout=5)
-        st_proc.wait(timeout=5)
-        logger.info("Servers stopped.")
+        try:
+            api_proc.wait(timeout=5)
+            st_proc.wait(timeout=5)
+        except Exception:
+            pass
     
+    try:
+        window = webview.create_window(
+            'AdvancedCATDAP', 
+            url,
+            width=1400,
+            height=900,
+            resizable=True,
+            min_size=(1024, 768)
+        )
+        
+        # Start webview with EdgeChromium (WebView2) for better Streamlit compatibility
+        # gui='edgechromium' uses Microsoft Edge WebView2
+        webview.start(gui='edgechromium', debug=False)
+    except Exception as e:
+        logger.error(f"WebView failed: {e}")
+        logger.info("Falling back to system browser...")
+        import webbrowser
+        webbrowser.open(url)
+        
+        print("\n" + "="*50)
+        print("AdvancedCATDAP is running!")
+        print(f"Open in browser: {url}")
+        print("="*50)
+        print("\nPress Ctrl+C to stop the servers...")
+        
+        try:
+            while True:
+                time.sleep(1)
+                if api_proc.poll() is not None or st_proc.poll() is not None:
+                    break
+        except KeyboardInterrupt:
+            pass
+    
+    # Cleanup
+    on_closing()
     sys.exit(0)
 
 if __name__ == "__main__":
