@@ -447,7 +447,10 @@ with tab_deepdive:
             }, inplace=True)
         
         if not df_fi.empty and "feature_details" in res:
-            # View mode selection
+            # Build available features list
+            avail_feats = sorted(list(res["feature_details"].keys())) if res.get("feature_details") else []
+            
+            # View mode and feature selection in same row
             col_mode, col_select = st.columns([0.3, 0.7])
             
             with col_mode:
@@ -458,27 +461,22 @@ with tab_deepdive:
                     key="deepdive_view_mode"
                 )
             
-            # Always render selectbox (hidden if not needed) to avoid rerun issues
-            avail_feats = sorted(list(res["feature_details"].keys())) if res.get("feature_details") else []
-            
             with col_select:
-                if view_mode == "Select Feature" and avail_feats:
-                    selected_feat = st.selectbox(
-                        "Select Feature",
-                        avail_feats,
-                        key="deepdive_feature_select"
-                    )
-                else:
-                    selected_feat = None
-                    if view_mode == "Select Feature":
-                        st.info("No feature details available")
+                # Always render selectbox to maintain consistent widget tree
+                # Use disabled parameter to control interaction
+                selected_feat = st.selectbox(
+                    "Select Feature",
+                    avail_feats if avail_feats else ["No features available"],
+                    key="deepdive_feature_select",
+                    disabled=(view_mode != "Select Feature" or not avail_feats)
+                )
             
             # Determine features to show
             features_to_show = []
             if view_mode == "Top 5 Drivers":
                 if "Delta_Score" in df_fi.columns and "Feature" in df_fi.columns:
                     features_to_show = df_fi.sort_values("Delta_Score", ascending=False).head(5)["Feature"].tolist()
-            elif selected_feat:
+            elif avail_feats and selected_feat and selected_feat != "No features available":
                 features_to_show = [selected_feat]
             
             # Display feature details
