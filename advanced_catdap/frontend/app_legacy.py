@@ -498,7 +498,6 @@ def dashboard_content():
                     z="Gain",
                     nbinsx=len(features),
                     nbinsy=len(features),
-                    nbinsy=len(features),
                     color_continuous_scale="Blues",
                 )
                 fig_heat.update_layout(

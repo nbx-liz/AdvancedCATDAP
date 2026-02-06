@@ -18,15 +18,16 @@ def launch():
     
     # 2. Worker (Implicitly handled by JobManager)
     
-    # 3. Frontend
-    print("Launching Frontend...")
+    # 3. Frontend (Dash)
+    print("Launching Frontend (Dash)...")
     # Give API a second to spin up
     time.sleep(2)
-    subprocess.Popen('start cmd /k "set PYTHONPATH=. && uv run streamlit run advanced_catdap/frontend/app.py"', shell=True)
+    # Set API_URL explicitly, though default is usually fine
+    subprocess.Popen('start cmd /k "set PYTHONPATH=. && set API_URL=http://127.0.0.1:8000 && uv run python advanced_catdap/frontend/dash_app.py"', shell=True)
 
     print("\n--- Components Launched ---")
     print("1. API: http://localhost:8000")
-    print("2. Frontend: http://localhost:8501")
+    print("2. Frontend: http://localhost:8050")
     print("3. Job Worker: (Local Subprocesses)")
 
 if __name__ == "__main__":

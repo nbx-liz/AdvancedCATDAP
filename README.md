@@ -14,7 +14,7 @@ It supports both **Classification** and **Regression** tasks and is compatible w
 - **Feature Selection**: Selects top-k features that contribute most to the model quality.
 - **Interpretability**: Provides a detailed `feature_details_` table showing the relationship (counts, target means) for each bin/category.
 - **Scikit-learn Compatible**: Implements `BaseEstimator` and `TransformerMixin` for easy integration into `sklearn.pipeline.Pipeline`.
-- **Web GUI**: Interactive Streamlit-based interface for data upload and analysis.
+- **Web GUI**: Modern Dash interface with Neon/Glassmorphism design for data upload and analysis.
 - **Windows Desktop App**: Standalone `.exe` with native window (no browser required).
 
 ## Requirements
@@ -32,7 +32,7 @@ pip install .
 uv sync --all-extras
 
 # Install with optional dependencies
-pip install ".[web]"     # FastAPI + Streamlit
+pip install ".[web]"     # FastAPI + Dash
 pip install ".[gui]"     # Streamlit + Plotly
 pip install ".[desktop]" # PyInstaller + pywebview
 pip install ".[all]"     # Everything
@@ -74,8 +74,8 @@ uv run scripts/launch_gui.py
 # Or manually
 # Terminal 1: API
 uvicorn advanced_catdap.service.api:app --reload --port 8000
-# Terminal 2: Streamlit
-streamlit run advanced_catdap/frontend/app.py
+# Terminal 2: Dash Web App
+python advanced_catdap/frontend/dash_app.py
 ```
 
 ### Windows Desktop App (New)
@@ -114,8 +114,9 @@ AdvancedCATDAP/
 │   │   ├── task_detector.py   # Auto task type detection
 │   │   ├── interaction_searcher.py  # Interaction discovery
 │   │   └── utils.py           # Helper functions
-│   ├── frontend/              # Streamlit UI
-│   │   ├── app.py             # Main Streamlit app
+│   ├── frontend/              # Dash UI
+│   │   ├── dash_app.py        # Main Dash app
+│   │   ├── app_legacy.py      # Archive (Streamlit)
 │   │   └── api_client.py      # API client for frontend
 │   └── service/               # Backend services
 │       ├── api.py             # FastAPI endpoints
