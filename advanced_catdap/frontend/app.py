@@ -10,6 +10,21 @@ import os
 import logging
 from datetime import datetime
 
+NEON_CYAN = "#00f3ff"
+NEON_MAGENTA = "#bc13fe"
+NEON_GREEN = "#0aff99"
+
+def apply_chart_style(fig):
+    """Apply standard dark/neon theme to Plotly figures."""
+    fig.update_layout(
+        template="plotly_dark",
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        font=dict(family="Inter, sans-serif", color="#e0e0e0"),
+        title_font=dict(color=NEON_CYAN),
+        margin=dict(l=20, r=20, t=50, b=20)
+    )
+
 def plotly_html(fig, height=400):
     """
     Render Plotly figure as HTML component instead of st.plotly_chart.
@@ -61,96 +76,112 @@ debug_log("After page config")
 st.markdown("""
 <style>
 /* ============================================
-   Theme-Aware CSS Variables
+   Neon & Glass Theme (Dash Unification)
    ============================================ */
-
-/* Light Mode (Default) */
 :root {
-    --bg-card: #f8f9fa;
-    --border-card: #e0e0e0;
-    --text-primary: #1a1a2e;
-    --text-secondary: #666666;
-    --bg-sidebar: #fafafa;
-    --shadow-card: rgba(0, 0, 0, 0.05);
-}
-
-/* Dark Mode Detection via Streamlit's theme */
-@media (prefers-color-scheme: dark) {
-    :root {
-        --bg-card: #262730;
-        --border-card: #3d3d4d;
-        --text-primary: #fafafa;
-        --text-secondary: #b0b0b0;
-        --bg-sidebar: #1e1e28;
-        --shadow-card: rgba(0, 0, 0, 0.3);
-    }
-}
-
-/* Streamlit Dark Theme Detection (Class-based) */
-[data-theme="dark"], 
-.stApp[data-theme="dark"],
-html[data-theme="dark"] {
-    --bg-card: #262730;
-    --border-card: #3d3d4d;
-    --text-primary: #fafafa;
+    --neon-cyan: #00f3ff;
+    --neon-magenta: #bc13fe;
+    --neon-green: #0aff99;
+    --glass-bg: rgba(20, 20, 30, 0.7);
+    --glass-border: rgba(255, 255, 255, 0.1);
+    --text-primary: #e0e0e0;
     --text-secondary: #b0b0b0;
-    --bg-sidebar: #1e1e28;
-    --shadow-card: rgba(0, 0, 0, 0.3);
 }
 
-/* ============================================
-   KPI Card Styling
-   ============================================ */
+/* Main App Background */
+.stApp {
+    background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+    color: var(--text-primary);
+}
+
+/* Sidebar */
+section[data-testid="stSidebar"] {
+    background-color: rgba(0, 0, 0, 0.3);
+    backdrop-filter: blur(10px);
+    border-right: 1px solid var(--glass-border);
+}
+
+/* KPI Cards (Metrics) */
 div[data-testid="stMetric"] {
-    background-color: var(--bg-card);
-    border: 1px solid var(--border-card);
-    border-radius: 8px;
+    background-color: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    backdrop-filter: blur(10px);
+    border-radius: 12px;
     padding: 16px;
-    box-shadow: 0 2px 4px var(--shadow-card);
+    box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+    transition: transform 0.2s;
 }
-
-div[data-testid="stMetric"] > div {
-    padding: 0;
+div[data-testid="stMetric"]:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 12px rgba(0, 243, 255, 0.1);
+    border-color: var(--neon-cyan);
 }
 
 div[data-testid="stMetric"] label {
     color: var(--text-secondary) !important;
-    font-size: 0.85rem;
-    font-weight: 500;
 }
 
 div[data-testid="stMetric"] [data-testid="stMetricValue"] {
-    font-size: 1.8rem;
-    font-weight: 700;
-    color: var(--text-primary) !important;
+    color: var(--neon-cyan) !important;
+    font-family: 'Inter', sans-serif;
+    text-shadow: 0 0 10px rgba(0, 243, 255, 0.3);
 }
 
-/* ============================================
-   Tab Styling
-   ============================================ */
+/* Tabs */
 .stTabs [data-baseweb="tab-list"] {
     gap: 8px;
+    background-color: transparent;
 }
 
 .stTabs [data-baseweb="tab"] {
-    padding: 12px 24px;
-    font-weight: 500;
+    padding: 10px 20px;
+    color: var(--text-secondary);
+    border-radius: 4px;
+    transition: all 0.3s;
 }
 
-/* ============================================
-   Header Styling
-   ============================================ */
-.main-header {
-    font-size: 2rem;
-    font-weight: 700;
-    color: var(--text-primary);
-    margin-bottom: 0;
+.stTabs [data-baseweb="tab"][aria-selected="true"] {
+    background-color: rgba(188, 19, 254, 0.1);
+    color: var(--neon-magenta) !important;
+    border-bottom: 2px solid var(--neon-magenta);
+    font-weight: bold;
+}
+
+/* Headings */
+h1, h2, h3, .main-header {
+    font-family: 'Inter', sans-serif;
+    color: white !important;
 }
 
 .sub-header {
-    color: var(--text-secondary);
-    font-size: 0.95rem;
-    margin-top: 0;
+    color: var(--text-secondary) !important;
+}
+
+/* Buttons */
+.stButton button {
+    background: transparent;
+    border: 1px solid var(--neon-cyan);
+    color: var(--neon-cyan);
+    border-radius: 4px;
+    transition: all 0.3s;
+}
+.stButton button:hover {
+    background: rgba(0, 243, 255, 0.1);
+    box-shadow: 0 0 15px rgba(0, 243, 255, 0.4);
+    color: white;
+    border-color: white;
+}
+.stButton button:active { 
+    background: var(--neon-cyan);
+    color: black;
+}
+
+/* Expander */
+.streamlit-expanderHeader {
+    background-color: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    border-radius: 4px;
+    color: var(--text-primary);
 }
 </style>
 """, unsafe_allow_html=True)
@@ -427,7 +458,6 @@ def dashboard_content():
                     orientation='h',
                     color="Delta_Score",
                     color_continuous_scale="Blues",
-                    template="plotly_white"
                 )
                 fig_bar.update_layout(
                     font_family="Inter, sans-serif",
@@ -436,6 +466,7 @@ def dashboard_content():
                     coloraxis_showscale=False,
                     margin=dict(l=0, r=20, t=20, b=0)
                 )
+                apply_chart_style(fig_bar)
                 debug_log("Dashboard: Calling plotly_html for bar chart")
                 plotly_html(fig_bar, height=420)
                 debug_log("Dashboard: Bar chart rendered successfully")
@@ -467,14 +498,15 @@ def dashboard_content():
                     z="Gain",
                     nbinsx=len(features),
                     nbinsy=len(features),
+                    nbinsy=len(features),
                     color_continuous_scale="Blues",
-                    template="plotly_white"
                 )
                 fig_heat.update_layout(
                     font_family="Inter, sans-serif",
                     height=400,
                     margin=dict(l=0, r=0, t=20, b=0)
                 )
+                apply_chart_style(fig_heat)
                 debug_log("Dashboard: Calling plotly_html for heatmap")
                 plotly_html(fig_heat, height=420)
                 debug_log("Dashboard: Heatmap rendered successfully")
@@ -623,7 +655,7 @@ def deepdive_content():
                             x=df_plot["Value Range"],
                             y=df_plot["Sample Count"],
                             name="Sample Count",
-                            marker_color="#E0E0E0"
+                            marker_color=NEON_CYAN
                         ))
                         fig_dual.add_trace(go.Scatter(
                             x=df_plot["Value Range"],
@@ -631,7 +663,7 @@ def deepdive_content():
                             name=target_label,
                             yaxis="y2",
                             mode="lines+markers",
-                            line=dict(color="#FF4B4B", width=3)
+                            line=dict(color=NEON_MAGENTA, width=3)
                         ))
                         fig_dual.update_layout(
                             title=f"<b>{feat}</b> Impact",
@@ -640,10 +672,10 @@ def deepdive_content():
                             yaxis=dict(title="Sample Count"),
                             yaxis2=dict(title=target_label, overlaying="y", side="right", showgrid=False),
                             legend=dict(orientation="h", y=1.1),
-                            template="plotly_white",
                             height=350,
                             margin=dict(l=0, r=0, t=40, b=0)
                         )
+                        apply_chart_style(fig_dual)
                         debug_log(f"Deep Dive: Calling plotly_html for '{feat}'")
                         plotly_html(fig_dual, height=370)
                         debug_log(f"Deep Dive: Chart rendered for '{feat}'")
@@ -688,9 +720,9 @@ def deepdive_content():
                     title=f"{metric_label} by {i_det['feature_1']} vs {i_det['feature_2']}",
                     xaxis_title=i_det['feature_2'],
                     yaxis_title=i_det['feature_1'],
-                    template="plotly_white",
                     height=400
                 )
+                apply_chart_style(fig_heat)
                 debug_log("Deep Dive: Calling plotly_html for interaction heatmap")
                 plotly_html(fig_heat, height=420)
                 debug_log("Deep Dive: Interaction heatmap rendered")
