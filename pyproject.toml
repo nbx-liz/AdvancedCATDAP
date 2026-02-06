@@ -26,7 +26,6 @@ web = [
     "httpx>=0.28.1",
 ]
 gui = [
-    "streamlit>=1.25.0",
     "plotly>=6.5.2",
 ]
 desktop = [
@@ -38,7 +37,7 @@ all = [
     "uvicorn>=0.20.0",
     "python-multipart>=0.0.22",
     "httpx>=0.28.1",
-    "streamlit>=1.25.0",
+    "httpx>=0.28.1",
     "plotly>=6.5.2",
     "pyinstaller>=6.4.0",
     "pywebview>=5.0.0",
