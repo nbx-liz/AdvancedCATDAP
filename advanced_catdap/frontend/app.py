@@ -450,33 +450,42 @@ with tab_deepdive:
             # Build available features list
             avail_feats = sorted(list(res["feature_details"].keys())) if res.get("feature_details") else []
             
-            # View mode and feature selection
-            col_mode, col_select = st.columns([0.3, 0.7])
+            # Use session state for view mode tracking
+            if "deepdive_mode" not in st.session_state:
+                st.session_state.deepdive_mode = "top5"
             
-            with col_mode:
-                view_mode = st.radio(
-                    "View Mode",
-                    ["Top 5 Drivers", "Select Feature"],
-                    horizontal=True,
-                    key="deepdive_view_mode"
-                )
+            # Simple buttons for mode selection (more stable than radio)
+            st.write("**View Mode:**")
+            col_btn1, col_btn2, col_feat = st.columns([0.15, 0.15, 0.7])
             
-            with col_select:
-                # Always render selectbox to maintain consistent widget tree
-                selected_feat = st.selectbox(
-                    "Select Feature",
-                    avail_feats if avail_feats else ["No features available"],
-                    key="deepdive_feature_select",
-                    disabled=(view_mode != "Select Feature" or not avail_feats)
-                )
+            with col_btn1:
+                if st.button("Top 5 Drivers", key="btn_top5", 
+                             type="primary" if st.session_state.deepdive_mode == "top5" else "secondary"):
+                    st.session_state.deepdive_mode = "top5"
+            
+            with col_btn2:
+                if st.button("Select Feature", key="btn_select",
+                             type="primary" if st.session_state.deepdive_mode == "select" else "secondary"):
+                    st.session_state.deepdive_mode = "select"
+            
+            with col_feat:
+                if st.session_state.deepdive_mode == "select" and avail_feats:
+                    selected_feat = st.selectbox(
+                        "Feature",
+                        avail_feats,
+                        key="deepdive_feature_select",
+                        label_visibility="collapsed"
+                    )
+                else:
+                    selected_feat = None
             
             # Determine features to show
-            if view_mode == "Top 5 Drivers":
+            if st.session_state.deepdive_mode == "top5":
                 if "Delta_Score" in df_fi.columns and "Feature" in df_fi.columns:
                     features_to_show = df_fi.sort_values("Delta_Score", ascending=False).head(5)["Feature"].tolist()
                 else:
                     features_to_show = avail_feats[:5] if avail_feats else []
-            elif avail_feats and selected_feat and selected_feat != "No features available":
+            elif avail_feats and selected_feat:
                 features_to_show = [selected_feat]
             else:
                 features_to_show = []
