@@ -450,44 +450,36 @@ with tab_deepdive:
             # Build available features list
             avail_feats = sorted(list(res["feature_details"].keys())) if res.get("feature_details") else []
             
-            if not avail_feats:
-                st.info("No feature details available.")
-            else:
-                # Simple two-column layout for controls
-                col1, col2 = st.columns([0.5, 0.5])
-                
-                with col1:
-                    # Number of top features to show
-                    num_features = st.slider(
-                        "Number of features to display",
-                        min_value=1,
-                        max_value=min(10, len(avail_feats)),
-                        value=min(5, len(avail_feats)),
-                        key="deepdive_num_features"
-                    )
-                
-                with col2:
-                    # Optional: Filter to specific feature
-                    show_specific = st.checkbox(
-                        "Show specific feature only",
-                        value=False,
-                        key="deepdive_show_specific"
-                    )
-                    if show_specific:
-                        selected_feat = st.selectbox(
-                            "Select Feature",
-                            avail_feats,
-                            key="deepdive_feature_select"
-                        )
-                
-                # Determine features to show
-                if show_specific and "deepdive_feature_select" in st.session_state:
-                    features_to_show = [st.session_state.deepdive_feature_select]
+            # View mode and feature selection
+            col_mode, col_select = st.columns([0.3, 0.7])
+            
+            with col_mode:
+                view_mode = st.radio(
+                    "View Mode",
+                    ["Top 5 Drivers", "Select Feature"],
+                    horizontal=True,
+                    key="deepdive_view_mode"
+                )
+            
+            with col_select:
+                # Always render selectbox to maintain consistent widget tree
+                selected_feat = st.selectbox(
+                    "Select Feature",
+                    avail_feats if avail_feats else ["No features available"],
+                    key="deepdive_feature_select",
+                    disabled=(view_mode != "Select Feature" or not avail_feats)
+                )
+            
+            # Determine features to show
+            if view_mode == "Top 5 Drivers":
+                if "Delta_Score" in df_fi.columns and "Feature" in df_fi.columns:
+                    features_to_show = df_fi.sort_values("Delta_Score", ascending=False).head(5)["Feature"].tolist()
                 else:
-                    if "Delta_Score" in df_fi.columns and "Feature" in df_fi.columns:
-                        features_to_show = df_fi.sort_values("Delta_Score", ascending=False).head(num_features)["Feature"].tolist()
-                    else:
-                        features_to_show = avail_feats[:num_features]
+                    features_to_show = avail_feats[:5] if avail_feats else []
+            elif avail_feats and selected_feat and selected_feat != "No features available":
+                features_to_show = [selected_feat]
+            else:
+                features_to_show = []
             
             # Display feature details with simplified charts
             for feat in features_to_show:

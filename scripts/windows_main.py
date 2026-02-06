@@ -215,27 +215,41 @@ def main():
     
     logger.info("Both servers started successfully")
 
-    # Launch GUI
-    logger.info("Launching WebView...")
+    # Launch in system browser instead of WebView
+    # WebView has compatibility issues with Streamlit's interactive widgets
+    import webbrowser
+    url = f'http://localhost:{st_port}'
+    logger.info(f"Opening browser at {url}")
+    webbrowser.open(url)
     
-    def on_closing():
-        logger.info("Window closing, killing servers...")
+    # Keep the process running until user closes it
+    print("\n" + "="*50)
+    print("AdvancedCATDAP is running!")
+    print(f"Open in browser: {url}")
+    print("="*50)
+    print("\nPress Ctrl+C to stop the servers...")
+    
+    try:
+        # Wait for user interrupt
+        while True:
+            time.sleep(1)
+            # Check if servers are still running
+            if api_proc.poll() is not None:
+                logger.error("API server stopped unexpectedly")
+                break
+            if st_proc.poll() is not None:
+                logger.error("Streamlit server stopped unexpectedly")
+                break
+    except KeyboardInterrupt:
+        print("\nShutting down...")
+    finally:
+        logger.info("Stopping servers...")
         api_proc.terminate()
         st_proc.terminate()
+        api_proc.wait(timeout=5)
+        st_proc.wait(timeout=5)
+        logger.info("Servers stopped.")
     
-    window = webview.create_window(
-        'AdvancedCATDAP', 
-        f'http://localhost:{st_port}',
-        width=1280,
-        height=800,
-        resizable=True
-    )
-    
-    # Start webview (blocking)
-    webview.start(func=None, debug=False)
-    
-    # Cleanup after window closes
-    on_closing()
     sys.exit(0)
 
 if __name__ == "__main__":
