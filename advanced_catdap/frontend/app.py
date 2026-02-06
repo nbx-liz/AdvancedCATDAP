@@ -6,6 +6,33 @@ import plotly.graph_objects as go
 from advanced_catdap.frontend.api_client import APIClient
 from advanced_catdap.service.schema import AnalysisParams
 import os
+import logging
+from datetime import datetime
+
+# Setup debug logging to file
+LOG_FILE = os.path.join(os.path.dirname(__file__), "debug.log")
+MARKER_FILE = os.path.join(os.path.dirname(__file__), ".log_cleared")
+
+def debug_log(msg):
+    """Log debug message to file."""
+    timestamp = datetime.now().strftime("%H:%M:%S.%f")[:-3]
+    log_msg = f"[{timestamp}] {msg}"
+    try:
+        with open(LOG_FILE, "a", encoding="utf-8") as f:
+            f.write(log_msg + "\n")
+            f.flush()  # Force write
+    except Exception as e:
+        pass  # Silently ignore logging errors
+
+# Clear log file only once per app launch (not on every rerun)
+# Use a marker file to track if we already cleared
+if not os.path.exists(MARKER_FILE):
+    with open(LOG_FILE, "w", encoding="utf-8") as f:
+        f.write(f"=== App started at {datetime.now()} ===\n")
+    with open(MARKER_FILE, "w") as f:
+        f.write("cleared")
+
+debug_log("Module loaded - this should appear on every rerun")
 
 # ============================================================
 # Page Config (Wide Layout)
@@ -16,6 +43,8 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
+
+debug_log("After page config")
 
 # ============================================================
 # Custom CSS for KPI Cards (Dark/Light Mode Compatible)
@@ -134,10 +163,13 @@ if "job_id" not in st.session_state:
 if "analysis_result" not in st.session_state:
     st.session_state.analysis_result = None
 
+debug_log("After session state init")
+
 # ============================================================
 # Sidebar - Configuration
 # ============================================================
 with st.sidebar:
+    debug_log("Starting sidebar")
     st.markdown("## 📊 AdvancedCATDAP")
     st.caption("AIC-based Feature Analysis")
     
@@ -285,6 +317,7 @@ if st.session_state.job_id and st.session_state.analysis_result is None:
 # KPI Area (Top Row) - Only show when results available
 # ============================================================
 if st.session_state.analysis_result:
+    debug_log("In KPI section")
     res = st.session_state.analysis_result
     
     # Calculate KPIs
@@ -336,23 +369,31 @@ if st.session_state.analysis_result:
 # ============================================================
 # Tabs: Dashboard / Deep Dive / Simulator
 # ============================================================
+debug_log("Before tabs creation")
 tab_dashboard, tab_deepdive, tab_simulator = st.tabs([
     "📈 Dashboard",
     "🔍 Deep Dive", 
     "⚡ Simulator"
 ])
+debug_log("After tabs creation")
 
 # ============================================================
-# Tab 1: Dashboard
+# Fragment for Dashboard content (prevents rerun when other tabs change)
 # ============================================================
-with tab_dashboard:
+@st.fragment
+def dashboard_fragment():
+    """Dashboard content wrapped in fragment to prevent cross-tab reruns."""
+    debug_log("Dashboard fragment started")
     if not st.session_state.analysis_result:
         st.info("🚀 Click **Run Analysis** in the sidebar to see results.")
+        debug_log("Dashboard: No results, showing info message")
     else:
+        debug_log("Dashboard: Has results, rendering charts")
         res = st.session_state.analysis_result
         fi_data = res.get("feature_importances", [])
         
         if fi_data:
+            debug_log(f"Dashboard: Feature importance data has {len(fi_data)} items")
             df_fi = pd.DataFrame(fi_data)
             
             # Handle key casing
@@ -365,6 +406,7 @@ with tab_dashboard:
             
             # Feature Importance Chart
             st.subheader("Feature Importance")
+            debug_log("Dashboard: About to render feature importance chart")
             
             if "Delta_Score" in df_fi.columns and "Feature" in df_fi.columns:
                 chart_df = df_fi.sort_values("Delta_Score", ascending=True).head(15)
@@ -385,13 +427,16 @@ with tab_dashboard:
                     coloraxis_showscale=False,
                     margin=dict(l=0, r=20, t=20, b=0)
                 )
+                debug_log("Dashboard: Calling st.plotly_chart for bar chart")
                 st.plotly_chart(fig_bar, use_container_width=True)
+                debug_log("Dashboard: Bar chart rendered successfully")
             else:
                 st.warning("Missing required columns for visualization.")
         
         # Interaction Heatmap
         ii_data = res.get("interaction_importances", [])
         if ii_data:
+            debug_log(f"Dashboard: Interaction data has {len(ii_data)} items")
             st.subheader("Top Interactions")
             
             df_ii = pd.DataFrame(ii_data)
@@ -405,6 +450,7 @@ with tab_dashboard:
             if "Feature_1" in df_ii.columns and "Feature_2" in df_ii.columns and "Gain" in df_ii.columns:
                 features = list(set(df_ii["Feature_1"]).union(set(df_ii["Feature_2"])))
                 
+                debug_log("Dashboard: About to render heatmap")
                 fig_heat = px.density_heatmap(
                     df_ii,
                     x="Feature_1",
@@ -420,198 +466,292 @@ with tab_dashboard:
                     height=400,
                     margin=dict(l=0, r=0, t=20, b=0)
                 )
+                debug_log("Dashboard: Calling st.plotly_chart for heatmap")
                 st.plotly_chart(fig_heat, use_container_width=True)
+                debug_log("Dashboard: Heatmap rendered successfully")
+    
+    debug_log("Dashboard fragment completed")
 
 # ============================================================
-# Tab 2: Deep Dive
+# Tab 1: Dashboard - Use fragment to isolate from other tabs
 # ============================================================
-with tab_deepdive:
+with tab_dashboard:
+    debug_log("Dashboard tab started - calling fragment")
+    dashboard_fragment()
+    debug_log("Dashboard tab - fragment call returned")
+
+# ============================================================
+# Tab 2: Deep Dive - Fragment to isolate from Dashboard renders
+# ============================================================
+@st.fragment
+def deepdive_fragment():
+    """Deep Dive content wrapped in fragment to prevent chart re-renders."""
+    debug_log("Deep Dive fragment started")
+    
+    # Aggressive cleanup to prevent memory leak from accumulated Matplotlib figures
+    import matplotlib.pyplot as plt
+    import gc
+    plt.close('all')
+    gc.collect()
+    debug_log("Deep Dive: Matplotlib cleanup completed")
+    
     if not st.session_state.analysis_result:
         st.info("🚀 Click **Run Analysis** in the sidebar to see results.")
-    else:
-        res = st.session_state.analysis_result
+        return
+    
+    res = st.session_state.analysis_result
+    
+    st.subheader("Detailed Feature Analysis")
+    
+    fi_data = res.get("feature_importances", [])
+    df_fi = pd.DataFrame(fi_data) if fi_data else pd.DataFrame()
+    
+    # Rename columns for consistency
+    if not df_fi.empty and "feature" in df_fi.columns:
+        df_fi.rename(columns={
+            "feature": "Feature",
+            "delta_score": "Delta_Score",
+            "score": "Score",
+            "actual_bins": "Actual_Bins",
+            "method": "Method"
+        }, inplace=True)
+    
+    if not df_fi.empty and "feature_details" in res:
+        debug_log("Deep Dive: Starting feature details section")
         
-        st.subheader("Detailed Feature Analysis")
+        # Build available features list
+        avail_feats = sorted(list(res["feature_details"].keys())) if res.get("feature_details") else []
+        debug_log(f"Deep Dive: Found {len(avail_feats)} features")
         
-        fi_data = res.get("feature_importances", [])
-        df_fi = pd.DataFrame(fi_data) if fi_data else pd.DataFrame()
+        # Use session state for view mode tracking (initialized outside fragment)
+        if "deepdive_mode" not in st.session_state:
+            st.session_state.deepdive_mode = "top5"
         
-        # Rename columns for consistency
-        if not df_fi.empty and "feature" in df_fi.columns:
-            df_fi.rename(columns={
-                "feature": "Feature",
-                "delta_score": "Delta_Score",
-                "score": "Score",
-                "actual_bins": "Actual_Bins",
-                "method": "Method"
-            }, inplace=True)
+        debug_log(f"Deep Dive: Current mode = {st.session_state.deepdive_mode}")
         
-        if not df_fi.empty and "feature_details" in res:
-            # Build available features list
-            avail_feats = sorted(list(res["feature_details"].keys())) if res.get("feature_details") else []
-            
-            # Use session state for view mode tracking
-            if "deepdive_mode" not in st.session_state:
-                st.session_state.deepdive_mode = "top5"
-            
-            # Simple buttons for mode selection (more stable than radio)
-            st.write("**View Mode:**")
-            col_btn1, col_btn2, col_feat = st.columns([0.15, 0.15, 0.7])
-            
-            with col_btn1:
-                if st.button("Top 5 Drivers", key="btn_top5", 
-                             type="primary" if st.session_state.deepdive_mode == "top5" else "secondary"):
-                    st.session_state.deepdive_mode = "top5"
-            
-            with col_btn2:
-                if st.button("Select Feature", key="btn_select",
-                             type="primary" if st.session_state.deepdive_mode == "select" else "secondary"):
-                    st.session_state.deepdive_mode = "select"
-            
-            with col_feat:
-                if st.session_state.deepdive_mode == "select" and avail_feats:
-                    selected_feat = st.selectbox(
-                        "Feature",
-                        avail_feats,
-                        key="deepdive_feature_select",
-                        label_visibility="collapsed"
-                    )
-                else:
-                    selected_feat = None
-            
-            # Determine features to show
-            if st.session_state.deepdive_mode == "top5":
-                if "Delta_Score" in df_fi.columns and "Feature" in df_fi.columns:
-                    features_to_show = df_fi.sort_values("Delta_Score", ascending=False).head(5)["Feature"].tolist()
-                else:
-                    features_to_show = avail_feats[:5] if avail_feats else []
-            elif avail_feats and selected_feat:
-                features_to_show = [selected_feat]
-            else:
-                features_to_show = []
-            
-            # Display feature details with simplified charts
-            for feat in features_to_show:
-                detail = res["feature_details"].get(feat)
-                if not detail:
-                    continue
-                
-                with st.expander(f"📊 {feat}", expanded=True):
-                    if detail.get("bin_counts") and detail.get("bin_means"):
-                        # Prepare labels
-                        if detail.get("bin_labels"):
-                            bin_labels = detail["bin_labels"]
-                        else:
-                            bin_labels = [f"Bin {i}" for i in range(len(detail["bin_counts"]))]
-                            edges = detail.get("bin_edges")
-                            if edges and len(edges) == len(detail["bin_counts"]) + 1:
-                                bin_labels = [f"[{edges[i]:.2f}, {edges[i+1]:.2f})" for i in range(len(detail["bin_counts"]))]
-                        
-                        mode_val = res.get("mode", "").upper()
-                        is_regression = mode_val == "REGRESSION"
-                        target_label = "Average Value" if is_regression else "Target Rate"
-                        
-                        df_plot = pd.DataFrame({
-                            "Value Range": bin_labels,
-                            "Sample Count": detail["bin_counts"],
-                            target_label: detail["bin_means"]
-                        })
-                        
-                        # Two-column layout
-                        c_plot, c_table = st.columns([0.6, 0.4])
-                        
-                        with c_plot:
-                            # Use Plotly Express for simpler rendering
-                            fig_dual = go.Figure()
-                            fig_dual.add_trace(go.Bar(
-                                x=df_plot["Value Range"],
-                                y=df_plot["Sample Count"],
-                                name="Sample Count",
-                                marker_color="#E0E0E0"
-                            ))
-                            fig_dual.add_trace(go.Scatter(
-                                x=df_plot["Value Range"],
-                                y=df_plot[target_label],
-                                name=target_label,
-                                yaxis="y2",
-                                mode="lines+markers",
-                                line=dict(color="#FF4B4B", width=3)
-                            ))
-                            fig_dual.update_layout(
-                                title=f"<b>{feat}</b> Impact",
-                                title_font_family="Inter",
-                                hovermode="x unified",
-                                yaxis=dict(title="Sample Count"),
-                                yaxis2=dict(title=target_label, overlaying="y", side="right", showgrid=False),
-                                legend=dict(orientation="h", y=1.1),
-                                template="plotly_white",
-                                height=350,
-                                margin=dict(l=0, r=0, t=40, b=0)
-                            )
-                            st.plotly_chart(fig_dual, use_container_width=True)
-                        
-                        with c_table:
-                            st.caption("Statistics")
-                            fmt = "{:.2f}" if is_regression else "{:.2%}"
-                            st.dataframe(
-                                df_plot.style.format({target_label: fmt}),
-                                height=300,
-                                use_container_width=True
-                            )
+        # Callback functions to keep reruns inside fragment
+        def set_top5_mode():
+            st.session_state.deepdive_mode = "top5"
+            debug_log("Deep Dive: Callback - set mode to top5")
         
-        # Interaction Details
-        st.divider()
-        st.subheader("Interaction Analysis")
+        def set_select_mode():
+            st.session_state.deepdive_mode = "select"
+            debug_log("Deep Dive: Callback - set mode to select")
         
-        if "interaction_details" in res and res["interaction_details"]:
-            int_details = res["interaction_details"]
-            int_keys = list(int_details.keys())
-            selected_int_key = st.selectbox("Select Interaction Pair", int_keys, key="deepdive_interaction_select")
-            
-            if selected_int_key:
-                i_det = int_details[selected_int_key]
-                
-                mode_val = res.get("mode", "").upper()
-                is_regression = mode_val == "REGRESSION"
-                metric_label = "Average Value" if is_regression else "Target Rate"
-                
-                st.caption(f"Impact of **{i_det['feature_1']}** × **{i_det['feature_2']}** on {metric_label}")
-                
-                fig_int_heat = go.Figure(data=go.Heatmap(
-                    z=i_det['means'],
-                    x=i_det['bin_labels_2'],
-                    y=i_det['bin_labels_1'],
-                    colorscale='Blues',
-                    colorbar=dict(title=metric_label)
-                ))
-                fig_int_heat.update_layout(
-                    title=f"{metric_label} by {i_det['feature_1']} vs {i_det['feature_2']}",
-                    xaxis_title=i_det['feature_2'],
-                    yaxis_title=i_det['feature_1'],
-                    height=400
+        # Simple buttons for mode selection with on_click callbacks
+        st.write("**View Mode:**")
+        col_btn1, col_btn2, col_feat = st.columns([0.15, 0.15, 0.7])
+        
+        with col_btn1:
+            debug_log("Deep Dive: Rendering Top 5 button")
+            st.button("Top 5 Drivers", key="btn_top5", 
+                     type="primary" if st.session_state.deepdive_mode == "top5" else "secondary",
+                     on_click=set_top5_mode)
+        
+        with col_btn2:
+            debug_log("Deep Dive: Rendering Select Feature button")
+            st.button("Select Feature", key="btn_select",
+                     type="primary" if st.session_state.deepdive_mode == "select" else "secondary",
+                     on_click=set_select_mode)
+        
+        debug_log(f"Deep Dive: After buttons, mode = {st.session_state.deepdive_mode}")
+        
+        with col_feat:
+            if st.session_state.deepdive_mode == "select" and avail_feats:
+                debug_log("Deep Dive: Rendering selectbox")
+                selected_feat = st.selectbox(
+                    "Feature",
+                    avail_feats,
+                    key="deepdive_feature_select",
+                    label_visibility="collapsed"
                 )
-                st.plotly_chart(fig_int_heat, use_container_width=True)
-                
-                with st.expander("📋 Detailed Statistics"):
-                    c1, c2 = st.columns(2)
-                    with c1:
-                        st.write("**Counts**")
-                        st.dataframe(pd.DataFrame(
-                            i_det['counts'],
-                            index=i_det['bin_labels_1'],
-                            columns=i_det['bin_labels_2']
-                        ))
-                    with c2:
-                        st.write(f"**{metric_label}s**")
-                        st.dataframe(pd.DataFrame(
-                            i_det['means'],
-                            index=i_det['bin_labels_1'],
-                            columns=i_det['bin_labels_2']
-                        ))
+                debug_log(f"Deep Dive: Selected feature = {selected_feat}")
+            else:
+                selected_feat = None
+                debug_log("Deep Dive: Selectbox not rendered (mode is top5 or no features)")
+        
+        # Determine features to show
+        debug_log("Deep Dive: Determining features to show")
+        if st.session_state.deepdive_mode == "top5":
+            if "Delta_Score" in df_fi.columns and "Feature" in df_fi.columns:
+                features_to_show = df_fi.sort_values("Delta_Score", ascending=False).head(5)["Feature"].tolist()
+            else:
+                features_to_show = avail_feats[:5] if avail_feats else []
+        elif avail_feats and selected_feat:
+            features_to_show = [selected_feat]
         else:
-            ii_data = res.get("interaction_importances", [])
-            if not ii_data:
-                st.info("No significant interactions found.")
+            features_to_show = []
+        
+        debug_log(f"Deep Dive: Features to show = {features_to_show}")
+        
+        # Generate unique key prefix for this render (forces chart recreation)
+        import uuid
+        render_id = str(uuid.uuid4())[:8]
+        debug_log(f"Deep Dive: Render ID = {render_id}")
+        
+        # Display feature details with simplified charts
+        for feat in features_to_show:
+            debug_log(f"Deep Dive: Processing feature '{feat}'")
+            detail = res["feature_details"].get(feat)
+            if not detail:
+                debug_log(f"Deep Dive: No detail for '{feat}', skipping")
+                continue
+            
+            debug_log(f"Deep Dive: Creating expander for '{feat}'")
+            with st.expander(f"📊 {feat}", expanded=True):
+                debug_log(f"Deep Dive: Inside expander for '{feat}'")
+                if detail.get("bin_counts") and detail.get("bin_means"):
+                    debug_log(f"Deep Dive: Has bin data for '{feat}'")
+                    # Prepare labels
+                    if detail.get("bin_labels"):
+                        bin_labels = detail["bin_labels"]
+                    else:
+                        bin_labels = [f"Bin {i}" for i in range(len(detail["bin_counts"]))]
+                        edges = detail.get("bin_edges")
+                        if edges and len(edges) == len(detail["bin_counts"]) + 1:
+                            bin_labels = [f"[{edges[i]:.2f}, {edges[i+1]:.2f})" for i in range(len(detail["bin_counts"]))]
+                    
+                    mode_val = res.get("mode", "").upper()
+                    is_regression = mode_val == "REGRESSION"
+                    target_label = "Average Value" if is_regression else "Target Rate"
+                    
+                    df_plot = pd.DataFrame({
+                        "Value Range": bin_labels,
+                        "Sample Count": detail["bin_counts"],
+                        target_label: detail["bin_means"]
+                    })
+                    
+                    debug_log(f"Deep Dive: Creating columns for '{feat}'")
+                    # Two-column layout
+                    c_plot, c_table = st.columns([0.6, 0.4])
+                    
+                    with c_plot:
+                        debug_log(f"Deep Dive: Creating Matplotlib figure for '{feat}'")
+                        # Use Matplotlib instead of Plotly to avoid WebView2 issues
+                        import matplotlib.pyplot as plt
+                        import matplotlib
+                        matplotlib.use('Agg')  # Non-interactive backend
+                        
+                        fig_mpl, ax1 = plt.subplots(figsize=(8, 4))
+                        
+                        # Bar chart for sample counts
+                        x_pos = range(len(bin_labels))
+                        bars = ax1.bar(x_pos, df_plot["Sample Count"], color='#E0E0E0', label='Sample Count')
+                        ax1.set_ylabel('Sample Count', color='gray')
+                        ax1.tick_params(axis='y', labelcolor='gray')
+                        ax1.set_xticks(x_pos)
+                        ax1.set_xticklabels(bin_labels, rotation=45, ha='right', fontsize=8)
+                        
+                        # Line chart for target rate on secondary axis
+                        ax2 = ax1.twinx()
+                        ax2.plot(x_pos, df_plot[target_label], color='#FF4B4B', marker='o', linewidth=2, label=target_label)
+                        ax2.set_ylabel(target_label, color='#FF4B4B')
+                        ax2.tick_params(axis='y', labelcolor='#FF4B4B')
+                        
+                        # Title and legend
+                        ax1.set_title(f'{feat} Impact', fontweight='bold', fontsize=12)
+                        
+                        # Combine legends
+                        lines1, labels1 = ax1.get_legend_handles_labels()
+                        lines2, labels2 = ax2.get_legend_handles_labels()
+                        ax1.legend(lines1 + lines2, labels1 + labels2, loc='upper right', fontsize=8)
+                        
+                        plt.tight_layout()
+                        
+                        debug_log(f"Deep Dive: Calling st.pyplot for '{feat}'")
+                        st.pyplot(fig_mpl)
+                        plt.close(fig_mpl)  # Clean up
+                        debug_log(f"Deep Dive: Chart rendered for '{feat}'")
+                    
+                    with c_table:
+                        st.caption("Statistics")
+                        fmt = "{:.2f}" if is_regression else "{:.2%}"
+                        st.dataframe(
+                            df_plot.style.format({target_label: fmt}),
+                            height=300,
+                            use_container_width=True
+                        )
+        
+        if st.session_state.deepdive_mode == "top5":
+            st.divider()
+            st.subheader("Interaction Analysis")
+        
+            if "interaction_details" in res and res["interaction_details"]:
+                int_details = res["interaction_details"]
+                int_keys = list(int_details.keys())
+                selected_int_key = st.selectbox("Select Interaction Pair", int_keys, key="deepdive_interaction_select")
+                
+                if selected_int_key:
+                    i_det = int_details[selected_int_key]
+                    
+                    mode_val = res.get("mode", "").upper()
+                    is_regression = mode_val == "REGRESSION"
+                    metric_label = "Average Value" if is_regression else "Target Rate"
+                    
+                    st.caption(f"Impact of **{i_det['feature_1']}** × **{i_det['feature_2']}** on {metric_label}")
+                    
+                    # Use Matplotlib heatmap instead of Plotly to avoid WebView2 freeze
+                    debug_log(f"Deep Dive: Creating Matplotlib heatmap for interaction")
+                    import matplotlib.pyplot as plt
+                    import matplotlib
+                    matplotlib.use('Agg')
+                    import numpy as np
+                    
+                    fig_heat, ax = plt.subplots(figsize=(10, 6))
+                    means_array = np.array(i_det['means'])
+                    
+                    im = ax.imshow(means_array, cmap='Blues', aspect='auto')
+                    
+                    # Set ticks and labels
+                    ax.set_xticks(range(len(i_det['bin_labels_2'])))
+                    ax.set_yticks(range(len(i_det['bin_labels_1'])))
+                    ax.set_xticklabels(i_det['bin_labels_2'], rotation=45, ha='right', fontsize=8)
+                    ax.set_yticklabels(i_det['bin_labels_1'], fontsize=8)
+                    
+                    # Add colorbar
+                    cbar = plt.colorbar(im, ax=ax)
+                    cbar.set_label(metric_label, fontsize=10)
+                    
+                    # Title and labels
+                    ax.set_title(f"{metric_label} by {i_det['feature_1']} vs {i_det['feature_2']}", fontweight='bold')
+                    ax.set_xlabel(i_det['feature_2'])
+                    ax.set_ylabel(i_det['feature_1'])
+                    
+                    plt.tight_layout()
+                    
+                    debug_log(f"Deep Dive: Calling st.pyplot for interaction heatmap")
+                    st.pyplot(fig_heat)
+                    plt.close(fig_heat)
+                    debug_log(f"Deep Dive: Interaction heatmap rendered")
+                    
+                    with st.expander("📋 Detailed Statistics"):
+                        c1, c2 = st.columns(2)
+                        with c1:
+                            st.write("**Counts**")
+                            st.dataframe(pd.DataFrame(
+                                i_det['counts'],
+                                index=i_det['bin_labels_1'],
+                                columns=i_det['bin_labels_2']
+                            ))
+                        with c2:
+                            st.write(f"**{metric_label}s**")
+                            st.dataframe(pd.DataFrame(
+                                i_det['means'],
+                                index=i_det['bin_labels_1'],
+                                columns=i_det['bin_labels_2']
+                            ))
+            else:
+                ii_data = res.get("interaction_importances", [])
+                if not ii_data:
+                    st.info("No significant interactions found.")
+    
+    debug_log("Deep Dive fragment completed")
+
+# Call Deep Dive fragment inside tab
+with tab_deepdive:
+    debug_log("Deep Dive tab started - calling fragment")
+    deepdive_fragment()
+    debug_log("Deep Dive tab - fragment call returned")
 
 # ============================================================
 # Tab 3: Simulator (Coming Soon)
