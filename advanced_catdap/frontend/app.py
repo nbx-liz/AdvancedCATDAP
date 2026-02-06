@@ -450,6 +450,12 @@ with tab_deepdive:
             # Build available features list
             avail_feats = sorted(list(res["feature_details"].keys())) if res.get("feature_details") else []
             
+            # Initialize session state for view mode if not exists
+            if "deepdive_view_mode_val" not in st.session_state:
+                st.session_state.deepdive_view_mode_val = "Top 5 Drivers"
+            if "deepdive_selected_feat_val" not in st.session_state:
+                st.session_state.deepdive_selected_feat_val = avail_feats[0] if avail_feats else None
+            
             # View mode and feature selection in same row
             col_mode, col_select = st.columns([0.3, 0.7])
             
@@ -463,7 +469,6 @@ with tab_deepdive:
             
             with col_select:
                 # Always render selectbox to maintain consistent widget tree
-                # Use disabled parameter to control interaction
                 selected_feat = st.selectbox(
                     "Select Feature",
                     avail_feats if avail_feats else ["No features available"],
@@ -472,14 +477,17 @@ with tab_deepdive:
                 )
             
             # Determine features to show
-            features_to_show = []
             if view_mode == "Top 5 Drivers":
                 if "Delta_Score" in df_fi.columns and "Feature" in df_fi.columns:
                     features_to_show = df_fi.sort_values("Delta_Score", ascending=False).head(5)["Feature"].tolist()
+                else:
+                    features_to_show = []
             elif avail_feats and selected_feat and selected_feat != "No features available":
                 features_to_show = [selected_feat]
+            else:
+                features_to_show = []
             
-            # Display feature details
+            # Display feature details with simplified charts
             for feat in features_to_show:
                 detail = res["feature_details"].get(feat)
                 if not detail:
@@ -510,6 +518,7 @@ with tab_deepdive:
                         c_plot, c_table = st.columns([0.6, 0.4])
                         
                         with c_plot:
+                            # Use Plotly Express for simpler rendering
                             fig_dual = go.Figure()
                             fig_dual.add_trace(go.Bar(
                                 x=df_plot["Value Range"],
@@ -536,7 +545,8 @@ with tab_deepdive:
                                 height=350,
                                 margin=dict(l=0, r=0, t=40, b=0)
                             )
-                            st.plotly_chart(fig_dual, use_container_width=True)
+                            # Use key to prevent re-creation
+                            st.plotly_chart(fig_dual, use_container_width=True, key=f"chart_{feat}")
                         
                         with c_table:
                             st.caption("Statistics")
