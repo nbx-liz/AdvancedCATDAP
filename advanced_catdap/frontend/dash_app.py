@@ -137,8 +137,11 @@ def render_dashboard_tab(result, meta, theme=None): # theme arg kept for compati
             fig_fi = px.bar(
                 df_top, x=delta_col, y=feat_col, orientation='h',
                 title="Top Features by Impact (Delta AIC)",
+                color=delta_col,
+                color_continuous_scale="Bluyl"
             )
-            fig_fi.update_traces(marker_color=NEON_CYAN, marker_line_width=0)
+            fig_fi.update_traces(marker_line_width=0)
+            fig_fi.update_layout(coloraxis_showscale=False)
             apply_chart_style(fig_fi)
 
     # Interactions Heatmap
@@ -279,8 +282,8 @@ def render_deepdive_tab(result, selected_mode, selected_feature, theme, meta=Non
                 dbc.Col(dcc.Graph(figure=fig), md=8),
                 dbc.Col([
                     html.H6("Stats Data", className="text-secondary mb-2"),
-                    dbc.Table.from_dataframe(df_table, striped=True, bordered=False, hover=True,
-                        className="table-dark small opacity-75")
+                    dbc.Table.from_dataframe(df_table, striped=False, bordered=False, hover=True,
+                        className="table-glass small")
                 ], md=4, className="d-flex flex-column justify-content-center")
             ])
         ], className="glass-card mb-3"))
@@ -310,6 +313,30 @@ def render_deepdive_tab(result, selected_mode, selected_feature, theme, meta=Non
             apply_chart_style(fig_int)
             fig_int.update_layout(title=f"{det['feature_1']} vs {det['feature_2']}")
             interaction_area.append(html.Div(dcc.Graph(figure=fig_int), className="glass-card"))
+
+            # Interaction Tables
+            df_counts = pd.DataFrame(det['counts'], index=det['bin_labels_1'], columns=det['bin_labels_2'])
+            df_means = pd.DataFrame(det['means'], index=det['bin_labels_1'], columns=det['bin_labels_2'])
+            
+            # Format means
+            df_means = df_means.map(lambda x: f"{x:.4f}" if isinstance(x, (float, int)) else x)
+
+            # Reset index for display
+            df_counts_disp = df_counts.reset_index().rename(columns={'index': det['feature_1']})
+            df_means_disp = df_means.reset_index().rename(columns={'index': det['feature_1']})
+
+            interaction_area.append(dbc.Row([
+                dbc.Col([
+                    html.H6("Sample Count Matrix", className="text-secondary mt-3"),
+                    dbc.Table.from_dataframe(df_counts_disp, striped=False, bordered=True, hover=True, className="table-glass small")
+                ], md=6),
+                dbc.Col([
+                    html.H6("Target Mean Matrix", className="text-secondary mt-3"),
+                    dbc.Table.from_dataframe(df_means_disp, striped=False, bordered=True, hover=True, className="table-glass small")
+                ], md=6)
+            ]))
+
+
 
     return html.Div([selector_card] + content_area + interaction_area)
 

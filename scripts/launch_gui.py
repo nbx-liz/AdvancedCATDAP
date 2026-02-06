@@ -14,7 +14,7 @@ def launch():
     
     # 1. API
     print("Launching API...")
-    subprocess.Popen('start cmd /k "set PYTHONPATH=. && uv run uvicorn advanced_catdap.service.api:app --reload --port 8000"', shell=True)
+    subprocess.Popen('start "AdvancedCATDAP_API" cmd /k "set PYTHONPATH=. && uv run uvicorn advanced_catdap.service.api:app --reload --port 8000"', shell=True)
     
     # 2. Worker (Implicitly handled by JobManager)
     
@@ -23,12 +23,19 @@ def launch():
     # Give API a second to spin up
     time.sleep(2)
     # Set API_URL explicitly, though default is usually fine
-    subprocess.Popen('start cmd /k "set PYTHONPATH=. && set API_URL=http://127.0.0.1:8000 && uv run python advanced_catdap/frontend/dash_app.py"', shell=True)
+    subprocess.Popen('start "AdvancedCATDAP_Dashboard" cmd /k "set PYTHONPATH=. && set API_URL=http://127.0.0.1:8000 && uv run python advanced_catdap/frontend/dash_app.py"', shell=True)
 
     print("\n--- Components Launched ---")
     print("1. API: http://localhost:8000")
     print("2. Frontend: http://localhost:8050")
     print("3. Job Worker: (Local Subprocesses)")
+
+    try:
+        import webbrowser
+        print("Opening browser...")
+        webbrowser.open("http://localhost:8050")
+    except Exception as e:
+        print(f"Could not open browser automatically: {e}")
 
 if __name__ == "__main__":
     launch()
