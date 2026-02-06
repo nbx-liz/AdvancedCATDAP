@@ -45,7 +45,8 @@ def run_api_server(port):
 def run_dash_server(port, api_port):
     """Run Dash server"""
     os.environ['API_URL'] = f'http://127.0.0.1:{api_port}'
-    from advanced_catdap.frontend.dash_app import app
+    from advanced_catdap.frontend.dash_app import app, configure_api_client
+    configure_api_client(f'http://127.0.0.1:{api_port}')
     app.run(debug=False, port=port, use_reloader=False)
 
 

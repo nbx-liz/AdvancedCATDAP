@@ -1,10 +1,9 @@
 """
-AdvancedCATDAP Dashboard - Dash Version (Final UX & Dark Mode)
-Full migration from Streamlit to Dash.
-Fixes: Deep Dive data structure, Visual Parity, Dark Mode, Interaction Analysis.
+AdvancedCATDAP Dashboard - Professional Modern Dark (Cyborg)
+Refactored for "Hybrid Modern Dark" design.
 """
 import dash
-from dash import dcc, html, Input, Output, State, callback, ctx, ALL, MATCH, clientside_callback
+from dash import dcc, html, Input, Output, State, callback, ctx, ALL, MATCH
 import dash_bootstrap_components as dbc
 import plotly.express as px
 import plotly.graph_objects as go
@@ -22,89 +21,86 @@ from advanced_catdap.service.schema import AnalysisParams
 API_URL = os.environ.get("API_URL", "http://127.0.0.1:8000")
 client = APIClient(base_url=API_URL)
 
-# Initialize Dash app
+def configure_api_client(api_url):
+    global client
+    print(f"[INFO] 配置 API Client to: {api_url}")
+    client = APIClient(base_url=api_url)
+
+# Initialize Dash app with CYBORG theme (Dark)
 app = dash.Dash(
     __name__,
-    external_stylesheets=[dbc.themes.BOOTSTRAP, dbc.icons.BOOTSTRAP],
-    title="AdvancedCATDAP Dashboard",
+    external_stylesheets=[dbc.themes.CYBORG, dbc.icons.BOOTSTRAP],
+    title="AdvancedCATDAP Analysis",
     suppress_callback_exceptions=True
 )
 
 # ============================================================
-# CSS & Theme Management
+# Constants & Helpers
 # ============================================================
 
-# Styles are loaded from assets/style.css
+NEON_CYAN = "#00f3ff"
+NEON_MAGENTA = "#bc13fe"
+NEON_GREEN = "#0aff0a"
+TEMPLATE = "plotly_dark"
 
-SIDEBAR_STYLE = {
-    "position": "fixed",
-    "top": 0,
-    "left": 0,
-    "bottom": 0,
-    "width": "20rem",
-    "padding": "2rem 1rem",
-    "overflowY": "auto",
-    "transition": "background-color 0.3s"
-}
-
-CONTENT_STYLE = {
-    "marginLeft": "21rem",
-    "marginRight": "1rem",
-    "padding": "2rem 1rem",
-    "transition": "background-color 0.3s"
-}
-
-KPI_CARD_STYLE = {
-    'textAlign': 'center', 'padding': '1rem', 'borderRadius': '8px', 
-    'boxShadow': '0 2px 4px rgba(0,0,0,0.1)'
-}
-KPI_VALUE_STYLE = {'fontSize': '1.8rem', 'fontWeight': 'bold'}
-KPI_LABEL_STYLE = {'fontSize': '0.9rem', 'opacity': 0.8}
-
-# ============================================================
-# Helper Functions
-# ============================================================
-
-def get_plotly_template(theme):
-    return "plotly_dark" if theme == "dark" else "plotly_white"
-
-def create_kpi_card(value, label, subvalue=None):
+def create_kpi_card(value, label, subvalue=None, color=None):
+    """Create a Glassmorphism KPI Card"""
+    style_val = {}
+    if color:
+        style_val['color'] = color
+        # Override the background gradient if specific color requested, or keep css class
+    
     content = [
-        html.Div(value, style=KPI_VALUE_STYLE, className="kpi-value"),
-        html.Div(label, style=KPI_LABEL_STYLE)
+        html.Div(value, className="kpi-value", style=style_val),
+        html.Div(label, className="kpi-label")
     ]
     if subvalue:
-        content.append(html.Div(subvalue, style={'fontSize': '0.8rem', 'marginTop': '4px', 'opacity': 0.7}))
+        content.append(html.Div(subvalue, className="mt-2 text-muted small"))
         
-    return html.Div(content, style=KPI_CARD_STYLE, className="kpi-card")
+    return html.Div(content, className="glass-card text-center h-100 d-flex flex-column justify-content-center")
+
+def apply_chart_style(fig):
+    """Apply modern dark styling to Plotly figures"""
+    fig.update_layout(
+        template=TEMPLATE,
+        paper_bgcolor='rgba(0,0,0,0)',
+        plot_bgcolor='rgba(0,0,0,0)',
+        font=dict(family="Segoe UI", size=12, color="#e0e0e0"),
+        title_font=dict(size=16, color=NEON_CYAN),
+        margin=dict(l=40, r=20, t=50, b=40)
+    )
+    return fig
 
 # ============================================================
-# Components Generators
+# Component Generators
 # ============================================================
 
 def create_sidebar_content():
     return html.Div([
-        html.Div([
-            html.H3("AdvancedCATDAP", className="display-6 fs-4"),
-            dbc.Switch(id="theme-switch", label="🌙 Dark Mode", value=False, className="float-end"),
-        ], className="d-flex justify-content-between align-items-center"),
-        html.Hr(),
-        html.Label("Data Upload", className="fw-bold mt-2"),
+        # Header in Sidebar? No, Header is Global. This is controls.
+        html.H5("Controls", className="mb-3 text-info"),
+        
+        # File Upload
+        html.Label("Dataset", className="small text-muted mb-2"),
         dcc.Upload(
             id='upload-data',
-            children=dbc.Button("📂 Upload CSV/Parquet", color="secondary", outline=True, className="w-100"),
-            multiple=False
+            children=html.Div([
+                html.I(className="bi bi-cloud-upload fs-2 mb-2"),
+                html.Div("Drag & Drop or Click")
+            ]),
+            multiple=False,
+            className="upload-box mb-3"
         ),
-        html.Div(id='upload-status', className="mt-2 small"),
+        html.Div(id='upload-status', className="mb-3 small"),
+        
+        # Dynamic Content (Dropdowns etc)
         html.Div(id='sidebar-dynamic-content')
-    ], className="sidebar-content")
+    ])
 
-def render_dashboard_tab(result, meta, theme):
+def render_dashboard_tab(result, meta, theme=None): # theme arg kept for compatibility but unused
     if not result:
-        return dbc.Alert("👈 Please upload data and run analysis from the sidebar.", color="info", className="mt-4")
+        return dbc.Alert([html.I(className="bi bi-info-circle me-2"), "Please upload data and run analysis."], color="dark", className="glass-card border-info")
     
-    template = get_plotly_template(theme)
-
     # KPI Calculation
     baseline = result.get('baseline_score', 0)
     fi_data = result.get('feature_importances', [])
@@ -116,17 +112,19 @@ def render_dashboard_tab(result, meta, theme):
         if score_col in df_fi.columns:
             best_aic = df_fi[score_col].min()
     
-    delta = best_aic - baseline
+    delta = baseline - best_aic # Improvement
     n_selected = len(fi_data)
     n_total = meta['n_columns'] - 1 if meta else 0
 
+    # KPI Row
     kpi_row = dbc.Row([
-        dbc.Col(create_kpi_card(f"{baseline:,.1f}", "Baseline AIC"), md=4),
-        dbc.Col(create_kpi_card(f"{best_aic:,.1f}", "Best AIC", f"({delta:+,.1f})"), md=4),
-        dbc.Col(create_kpi_card(f"{n_selected} / {n_total}", "Selected Features"), md=4),
+        dbc.Col(create_kpi_card(f"{baseline:,.0f}", "Baseline AIC"), width=6, lg=3),
+        dbc.Col(create_kpi_card(f"{best_aic:,.0f}", "Optimized AIC", f"Improv: {delta:,.0f}", color=NEON_GREEN), width=6, lg=3),
+        dbc.Col(create_kpi_card(f"{n_selected}", "Selected Features", f"Out of {n_total}"), width=6, lg=3),
+        dbc.Col(create_kpi_card("Auto", "Model Type", result.get('mode', 'N/A')), width=6, lg=3),
     ], className="mb-4")
 
-    # Feature Importance
+    # Feature Importance Chart
     fig_fi = go.Figure()
     if fi_data:
         df_fi = pd.DataFrame(fi_data)
@@ -137,22 +135,13 @@ def render_dashboard_tab(result, meta, theme):
         if feat_col in df_fi.columns and delta_col in df_fi.columns:
             df_top = df_fi.nlargest(15, delta_col).sort_values(delta_col, ascending=True)
             fig_fi = px.bar(
-                df_top, 
-                x=delta_col, 
-                y=feat_col, 
-                orientation='h',
-                color=delta_col,
-                color_continuous_scale="Blues",
-                template=template
+                df_top, x=delta_col, y=feat_col, orientation='h',
+                title="Top Features by Impact (Delta AIC)",
             )
-            fig_fi.update_layout(
-                title="Feature Importance (Top 15)",
-                height=400,
-                margin=dict(l=0, r=20, t=40, b=0),
-                coloraxis_showscale=False
-            )
+            fig_fi.update_traces(marker_color=NEON_CYAN, marker_line_width=0)
+            apply_chart_style(fig_fi)
 
-    # Interactions High Level
+    # Interactions Heatmap
     fig_heat = go.Figure()
     data_ii = result.get('interaction_importances', [])
     if data_ii:
@@ -164,56 +153,64 @@ def render_dashboard_tab(result, meta, theme):
         
         if feat1_col in df_ii.columns and feat2_col in df_ii.columns and gain_col in df_ii.columns:
             fig_heat = px.density_heatmap(
-                df_ii,
-                x=feat1_col,
-                y=feat2_col,
-                z=gain_col,
-                histfunc="sum",
-                color_continuous_scale="Blues",
-                template=template
+                df_ii, x=feat1_col, y=feat2_col, z=gain_col, histfunc="sum",
+                title="Interaction Network",
+                color_continuous_scale="Viridis" # Good for dark
             )
-            fig_heat.update_layout(
-                title="Top Interactions Overview",
-                height=400,
-                margin=dict(l=0, r=0, t=40, b=0)
-            )
+            apply_chart_style(fig_heat)
 
-    return html.Div([kpi_row, dbc.Row([dbc.Col(dcc.Graph(figure=fig_fi), md=6), dbc.Col(dcc.Graph(figure=fig_heat), md=6)])])
+    # Charts Layout
+    charts_row = dbc.Row([
+        dbc.Col(html.Div(dcc.Graph(figure=fig_fi), className="glass-card"), md=12, lg=6),
+        dbc.Col(html.Div(dcc.Graph(figure=fig_heat), className="glass-card"), md=12, lg=6)
+    ])
 
-def render_deepdive_tab(result, selected_mode, selected_feature, theme, selected_interaction_pair=None):
+    return html.Div([kpi_row, charts_row])
+
+def render_deepdive_tab(result, selected_mode, selected_feature, theme, meta=None, target_col=None, selected_interaction_pair=None):
     if not result:
-        return dbc.Alert("Run analysis first.", color="warning")
+        return dbc.Alert("Run analysis first.", color="warning", className="glass-card")
     
-    template = get_plotly_template(theme)
+    # Match Streamlit logic: Use keys from feature_details for dropdown options
+    feature_details = result.get('feature_details', {})
     fi_data = result.get('feature_importances', [])
-    features = []
-    if fi_data:
-        df_fi = pd.DataFrame(fi_data)
-        col_map = {c.lower(): c for c in df_fi.columns}
-        feat_col = col_map.get('feature', 'Feature')
-        if feat_col in df_fi.columns: features = df_fi[feat_col].tolist()
+    dropdown_features = sorted(list(feature_details.keys()))
     
-    # 1. Feature Selector Area
-    selector_area = dbc.Row([
-        dbc.Col([
-            dbc.RadioItems(
-                id={'type': 'deepdive-mode', 'index': 0},
-                options=[{'label': 'Top 5 Drivers', 'value': 'top5'}, {'label': 'Select Feature', 'value': 'select'}],
-                value=selected_mode or 'top5', inline=True, className="mb-2"
-            )
-        ], md=4),
-        dbc.Col([
-            dcc.Dropdown(
-                id={'type': 'deepdive-feat-select', 'index': 0},
-                options=[{'label': f, 'value': f} for f in features],
-                value=selected_feature or (features[0] if features else None),
-                placeholder="Select feature...", disabled=(selected_mode != 'select'),
-                className="dropdown-dark-mode-compatible" # Use custom class
-            )
-        ], md=8)
-    ], className="mb-4 align-items-center p-2 rounded", style={'backgroundColor': 'var(--card-bg)', 'border': '1px solid var(--border-color)'})
+    # Exclude target_col if present
+    if target_col and target_col in dropdown_features:
+        dropdown_features.remove(target_col)
+    
+    print(f"[DEBUG] Render DeepDive Mode: {selected_mode}, Feature Count: {len(dropdown_features)}")
+    
+    # Feature Selector
+    selector_card = html.Div([
+        dbc.Row([
+            dbc.Col([
+                dbc.Label("Selection Mode"),
+                dbc.RadioItems(
+                    id={'type': 'deepdive-mode', 'index': 0},
+                    options=[
+                        {'label': 'Top 5 Drivers', 'value': 'top5'},
+                        {'label': 'Select Feature', 'value': 'select'}
+                    ],
+                    value=selected_mode or 'top5', inline=True,
+                    className="mb-2"
+                )
+            ], md=4),
+            dbc.Col([
+                dbc.Label("Select Feature"),
+                dbc.Select(
+                    id={'type': 'deepdive-feat-select', 'index': 0},
+                    options=[{'label': f, 'value': f} for f in dropdown_features],
+                    value=selected_feature or (dropdown_features[0] if dropdown_features else None),
+                    placeholder="Select feature...",
+                    disabled=(selected_mode != 'select'),
+                    # className handled by css overrides
+                )
+            ], md=8)
+        ], className="align-items-center")
+    ], className="glass-card p-3 mb-3")
 
-    # 2. detailed Charts Area
     content_area = []
     features_to_show = []
     feature_details = result.get('feature_details', {})
@@ -235,172 +232,140 @@ def render_deepdive_tab(result, selected_mode, selected_feature, theme, selected
         
         bin_counts = detail.get('bin_counts', [])
         bin_means = detail.get('bin_means', [])
+        # Bin labeling logic
         bin_labels = detail.get('bin_labels', [])
         bin_edges = detail.get('bin_edges', [])
+        if bin_counts and not bin_labels and bin_edges and len(bin_edges) == len(bin_counts) + 1:
+            bin_labels = [f"[{bin_edges[i]:.2f}, {bin_edges[i+1]:.2f})" for i in range(len(bin_counts))]
+        elif bin_counts and not bin_labels:
+             bin_labels = [f"Bin {i}" for i in range(len(bin_counts))]
         
-        if bin_counts:
-            # Better label logic (from edges)
-            if not bin_labels and bin_edges and len(bin_edges) == len(bin_counts) + 1:
-                bin_labels = [f"[{bin_edges[i]:.2f}, {bin_edges[i+1]:.2f})" for i in range(len(bin_counts))]
-            elif not bin_labels:
-                 bin_labels = [f"Bin {i}" for i in range(len(bin_counts))]
-            
-            # Determine logic
-            mode_val = result.get('mode', 'auto').upper()
-            is_regression = mode_val == 'REGRESSION'
-            target_label = "Avg Value" if is_regression else "Target Rate"
+        # Determine labels
+        mode_val = result.get('mode', 'auto').upper()
+        target_label = "Avg Value" if mode_val == 'REGRESSION' else "Target Rate"
 
-            # Create DF
-            plot_data = {
-                'Value Range': bin_labels,
-                'Sample Count': bin_counts,
-            }
-            if bin_means:
-                plot_data[target_label] = bin_means
-                
-            df_plot = pd.DataFrame(plot_data)
-            
-            # Plot
-            fig = go.Figure()
-            fig.add_trace(go.Bar(
-                x=df_plot['Value Range'], 
-                y=df_plot['Sample Count'], 
-                name='Count', 
-                marker_color='#bdc3c7',
-                yaxis='y'
+        # Chart
+        fig = go.Figure()
+        # Bar (Count)
+        fig.add_trace(go.Bar(
+            x=bin_labels, y=bin_counts, name='Count',
+            marker_color='rgba(255,255,255,0.2)',
+            yaxis='y'
+        ))
+        # Line (Target)
+        if bin_means:
+            fig.add_trace(go.Scatter(
+                x=bin_labels, y=bin_means, name=target_label,
+                yaxis='y2', mode='lines+markers',
+                line=dict(color=NEON_MAGENTA, width=3)
             ))
             
-            if target_label in df_plot.columns:
-                fig.add_trace(go.Scatter(
-                    x=df_plot['Value Range'], 
-                    y=df_plot[target_label], 
-                    name=target_label, 
-                    yaxis='y2', 
-                    line=dict(color='#e74c3c', width=3),
-                    mode='lines+markers'
-                ))
-            
-            fig.update_layout(
-                title=f"<b>{feat}</b> Impact",
-                template=template,
-                height=350,
-                xaxis=dict(title="Value Range"),
-                yaxis=dict(title="Count"),
-                yaxis2=dict(
-                    title=target_label, 
-                    overlaying='y', 
-                    side='right', 
-                    showgrid=False
-                ),
-                legend=dict(orientation='h', y=1.1, x=0.5, xanchor='center'),
-                margin=dict(l=40, r=40, t=40, b=40)
-            )
-            
-            # Layout: Chart Left, Table Right
-            card_content = dbc.Row([
-                dbc.Col(dcc.Graph(figure=fig), md=7),
+        fig.update_layout(
+            title=f"Analysis: {feat}",
+            xaxis_title="Bins",
+            yaxis=dict(title="Sample Count"),
+            yaxis2=dict(title=target_label, overlaying='y', side='right', showgrid=False),
+            legend=dict(orientation='h', y=1.1, x=0.5, xanchor='center')
+        )
+        apply_chart_style(fig)
+        
+        # Table DF
+        df_table = pd.DataFrame({'Bin': bin_labels, 'Count': bin_counts})
+        if bin_means: df_table[target_label] = bin_means
+        
+        # Chart + Table Row
+        content_area.append(html.Div([
+            dbc.Row([
+                dbc.Col(dcc.Graph(figure=fig), md=8),
                 dbc.Col([
-                    html.H6("Statistics", className="text-center mb-2"),
-                    dbc.Table.from_dataframe(
-                        df_plot, 
-                        striped=True, 
-                        bordered=True, 
-                        hover=True, 
-                        responsive=True,
-                        style={'fontSize': '0.8rem'},
-                        className="text-center"
-                    )
-                ], md=5)
+                    html.H6("Stats Data", className="text-secondary mb-2"),
+                    dbc.Table.from_dataframe(df_table, striped=True, bordered=False, hover=True,
+                        className="table-dark small opacity-75")
+                ], md=4, className="d-flex flex-column justify-content-center")
             ])
-            
-            content_area.append(dbc.Card(dbc.CardBody(card_content), className="mb-3", style={'backgroundColor': 'var(--card-bg)', 'borderColor': 'var(--border-color)'}))
+        ], className="glass-card mb-3"))
 
-    # 3. Interaction Detail Section
+    # Interaction Detail
     interaction_area = []
     interaction_details = result.get('interaction_details', {})
     if interaction_details:
         int_keys = list(interaction_details.keys())
-        # Add Interaction Selector
-        interaction_area.append(html.Hr())
-        interaction_area.append(html.H4("Interaction Analysis", className="mb-3"))
-        
         current_pair = selected_interaction_pair or int_keys[0]
         
+        interaction_area.append(html.H4("Interaction Detail", className="text-info mt-4 mb-3"))
         interaction_area.append(dcc.Dropdown(
             id={'type': 'deepdive-interaction-select', 'index': 0},
             options=[{'label': k, 'value': k} for k in int_keys],
             value=current_pair,
             clearable=False,
-            className="mb-3 dropdown-dark-mode-compatible"
+            className="mb-3"
         ))
         
-        # Detail Heatmap
         det = interaction_details.get(current_pair)
         if det:
             fig_int = go.Figure(data=go.Heatmap(
-                z=det['means'],
-                x=det['bin_labels_2'],
-                y=det['bin_labels_1'],
-                colorscale='Blues',
-                colorbar=dict(title="Target")
+                z=det['means'], x=det['bin_labels_2'], y=det['bin_labels_1'],
+                colorscale='Viridis', colorbar=dict(title="Target")
             ))
-            fig_int.update_layout(
-                title=f"Interaction: {det['feature_1']} vs {det['feature_2']}",
-                xaxis_title=det['feature_2'],
-                yaxis_title=det['feature_1'],
-                template=template,
-                height=400
-            )
-            interaction_area.append(dbc.Card(dbc.CardBody(dcc.Graph(figure=fig_int)), style={'backgroundColor': 'var(--card-bg)', 'borderColor': 'var(--border-color)'}))
-            
-    return html.Div([selector_area] + (content_area if content_area else [dbc.Alert("No detail data available for selected feature(s).", color="secondary")]) + interaction_area)
+            apply_chart_style(fig_int)
+            fig_int.update_layout(title=f"{det['feature_1']} vs {det['feature_2']}")
+            interaction_area.append(html.Div(dcc.Graph(figure=fig_int), className="glass-card"))
+
+    return html.Div([selector_card] + content_area + interaction_area)
 
 # ============================================================
 # Main Layout
 # ============================================================
-app.layout = html.Div([
 
+app.layout = dbc.Container([
+    # Store Components
     dcc.Store(id='store-dataset-meta', storage_type='memory'),
     dcc.Store(id='store-analysis-result', storage_type='memory'),
+    dcc.Store(id='store-analysis-params', storage_type='memory'),
     dcc.Store(id='store-job-id', storage_type='memory'),
     dcc.Store(id='store-deepdive-state', data={'mode': 'top5', 'feature': None, 'interaction': None}, storage_type='memory'),
-    dcc.Store(id='theme-store', data='light', storage_type='local'), # Persist theme
+    dcc.Store(id='theme-store', data='dark', storage_type='local'), # Force Dark
     dcc.Interval(id='job-poll-interval', interval=2000, disabled=True),
     
-    html.Div(id='main-container', className="main-content", children=[
-        html.Div(create_sidebar_content(), style=SIDEBAR_STYLE, className="sidebar"),
-        html.Div([
+    # 1. Header
+    dbc.Row([
+        dbc.Col([
+            html.Div([
+                html.I(className="bi bi-cpu-fill fs-3 text-info me-2"),
+                html.H3("AdvancedCATDAP", className="d-inline align-middle m-0 text-white")
+            ], className="d-flex align-items-center py-3")
+        ])
+    ], className="mb-2"),
+
+    # 2. Main Grid
+    dbc.Row([
+        # Left Sidebar (3/12)
+        dbc.Col([
+            html.Div(create_sidebar_content(), className="glass-card sticky-sidebar")
+        ], width=12, md=3, className="mb-4"),
+        
+        # Right Main Content (9/12)
+        dbc.Col([
             html.Div(id='global-status-message'),
-            dbc.Tabs(id="main-tabs", active_tab="tab-dashboard", children=[
-                dbc.Tab(label="Dashboard", tab_id="tab-dashboard"),
-                dbc.Tab(label="Deep Dive", tab_id="tab-deepdive"),
-                dbc.Tab(label="Simulator", tab_id="tab-simulator"),
-            ], className="mb-3"),
+            
+            # Use 'main-tabs' ID as requested
+            dbc.Tabs([
+                dbc.Tab(label="Dashboard", tab_id="tab-dashboard", label_class_name="text-uppercase"),
+                dbc.Tab(label="Deep Dive", tab_id="tab-deepdive", label_class_name="text-uppercase"),
+                dbc.Tab(label="Simulator", tab_id="tab-simulator", disabled=True, label_class_name="text-uppercase text-muted"),
+            ], id="main-tabs", active_tab="tab-dashboard", className="mb-3"),
+            
             html.Div(id='page-content')
-        ], style=CONTENT_STYLE)
+            
+        ], width=12, md=9)
     ])
-])
+
+], fluid=True, style={'minHeight': '100vh'})
+
 
 # ============================================================
 # Callbacks
 # ============================================================
-
-# Theme Switcher (Clientside)
-clientside_callback(
-    """
-    function(is_dark) {
-        if (is_dark) {
-            document.documentElement.setAttribute('data-theme', 'dark');
-            return 'dark';
-        } else {
-            document.documentElement.setAttribute('data-theme', 'light');
-            return 'light';
-        }
-    }
-    """,
-    Output('theme-store', 'data'),
-    Input('theme-switch', 'value')
-)
 
 @callback(
     Output('upload-status', 'children'),
@@ -421,37 +386,92 @@ def handle_file_upload(contents, filename):
         col_names = [c['name'] for c in meta_dict['columns']]
         
         settings = html.Div([
-            html.Hr(), html.H6("Settings"),
-            html.Label("Target Column", className="small"),
-            dcc.Dropdown(id='target-col', options=[{'label': c, 'value': c} for c in col_names], value=col_names[0] if col_names else None, className="mb-2 text-dark"),
-             html.Label("Task Type", className="small"),
-             dcc.Dropdown(id='task-type', options=[{'label': 'Auto', 'value': 'auto'}, {'label': 'Classification', 'value': 'classification'}, {'label': 'Regression', 'value': 'regression'}], value='auto', className="mb-2 text-dark"),
-             dbc.Button("🚀 Run Analysis", id='run-btn', color="primary", className="w-100 mt-3")
+            html.Hr(className="border-secondary"), 
+            html.H6("Analysis Settings", className="text-info"),
+            
+            html.Label("Target Variable", className="small text-muted"),
+            dcc.Dropdown(
+                id='target-col', 
+                options=[{'label': c, 'value': c} for c in col_names], 
+                value=col_names[0] if col_names else None, 
+                className="mb-3"
+            ),
+            
+            html.Label("Task Type", className="small text-muted"),
+                dcc.Dropdown(
+                    id='task-type',
+                    options=[
+                        {'label': 'Auto', 'value': 'auto'},
+                        {'label': 'Classification', 'value': 'classification'},
+                        {'label': 'Regression', 'value': 'regression'}
+                    ],
+                    value='auto',
+                    clearable=False,
+                    className="mb-3"
+                ),
+                
+                dbc.Accordion([
+                    dbc.AccordionItem([
+                        dbc.Label("Max Bins (2-20)"),
+                        dcc.Slider(id='max-bins', min=2, max=20, step=1, value=5, marks={i: str(i) for i in range(2, 21, 2)}),
+                        html.Br(),
+                        dbc.Label("Top K Features (1-50)"),
+                        dcc.Slider(id='top-k', min=1, max=50, step=1, value=10, marks={i: str(i) for i in [1, 10, 20, 30, 40, 50]}),
+                        html.Br(),
+                        dbc.Switch(id='use-aicc', label="Use AICc (Corrected)", value=True),
+                    ], title="Advanced Settings")
+                ], start_collapsed=True, className="mb-3"),
+
+                dbc.Button("Run Analysis", id='run-btn', color="primary", className="w-100 neon-button")
         ], className="mt-3")
-        return dbc.Alert(f"✅ {filename}", color="success", className="p-1"), meta_dict, settings
+        
+        return dbc.Alert(f"Loaded: {filename}", color="success", className="py-2 small"), meta_dict, settings
     except Exception as e:
-        return dbc.Alert(f"❌ Error: {str(e)}", color="danger"), None, None
+        return dbc.Alert(f"Error: {str(e)}", color="danger"), None, None
 
 @callback(
     Output('store-job-id', 'data'),
+    Output('store-analysis-params', 'data'),
     Output('job-poll-interval', 'disabled'),
     Output('global-status-message', 'children'),
     Input('run-btn', 'n_clicks'),
     State('store-dataset-meta', 'data'),
     State('target-col', 'value'),
     State('task-type', 'value'),
+    State('max-bins', 'value'),
+    State('top-k', 'value'),
+    State('use-aicc', 'value'),
     prevent_initial_call=True
 )
-def submit_job(n_clicks, meta, target_col, task_type):
-    if not n_clicks or not meta: return dash.no_update, dash.no_update, dash.no_update
+def submit_job(n_clicks, meta, target_col, task_type, max_bins, top_k, use_aicc):
+    if not n_clicks or not meta: return dash.no_update, dash.no_update, dash.no_update, dash.no_update
+    print(f"[DEBUG] Submit Job Clicked. Target: {target_col}")
     try:
+        # Default params
         col_names = [c['name'] for c in meta['columns']]
         candidates = [c for c in col_names if c != target_col]
-        params = AnalysisParams(target_col=target_col, candidate_features=candidates, task_type=task_type or "auto", max_bins=5, min_samples_per_bin=10, use_aicc=True)
+        params = AnalysisParams(
+            target_col=target_col, 
+            candidate_features=candidates, 
+            task_type=task_type or "auto",
+            max_bins=max_bins,
+            top_k=top_k,
+            use_aicc=use_aicc
+        )
+        
         job_id = client.submit_job(meta['dataset_id'], params)
-        return job_id, False, dbc.Alert(f"Processing... (Job: {job_id[:6]})", color="info")
+        print(f"[DEBUG] Job Submitted: {job_id}")
+        msg = dbc.Alert([
+            dbc.Spinner(size="sm", spinner_class_name="me-2"),
+            f"Analysis started... (Job: {job_id[:6]})"
+        ], color="info", className="glass-card border-info")
+        
+        # Save params
+        params_dict = {'target_col': target_col, 'task_type': task_type}
+        return job_id, params_dict, False, msg
     except Exception as e:
-        return None, True, dbc.Alert(f"Failed: {e}", color="danger")
+        print(f"[ERROR] Job Submission Failed: {e}")
+        return None, None, True, dbc.Alert(f"Failed: {e}", color="danger", className="glass-card")
 
 @callback(
     Output('store-analysis-result', 'data'),
@@ -464,20 +484,18 @@ def submit_job(n_clicks, meta, target_col, task_type):
 def poll_job(n, job_id):
     if not job_id: return dash.no_update, True, dash.no_update
     try:
-
         info = client.get_job_status(job_id)
         status = info.get('status')
-
         
         if status in ['completed', 'SUCCESS']:
-            return info.get('result'), True, dbc.Alert("✅ Analysis Completed!", color="success")
+            return info.get('result'), True, dbc.Alert("✅ Analysis Completed Successfully", color="success", className="glass-card")
         elif status in ['failed', 'FAILURE']:
-
-             return None, True, dbc.Alert(f"❌ Job Failed: {info.get('error')}", color="danger")
+             return None, True, dbc.Alert(f"❌ Job Failed: {info.get('error')}", color="danger", className="glass-card")
         else:
-            return dash.no_update, False, dbc.Alert(f"⏳ {info.get('progress', {}).get('stage', 'Running...')}", color="info")
+            stage = info.get('progress', {}).get('stage', 'Processing...')
+            return dash.no_update, False, dbc.Alert([dbc.Spinner(size="sm", spinner_class_name="me-2"), stage], color="info", className="glass-card border-info")
     except Exception as e:
-         return None, True, dbc.Alert(f"❌ Error during polling: {e}", color="danger")
+         return None, True, dbc.Alert(f"polling Error: {e}", color="danger")
 
 @callback(
     Output('page-content', 'children'),
@@ -485,25 +503,23 @@ def poll_job(n, job_id):
     Input('store-analysis-result', 'data'),
     Input('store-deepdive-state', 'data'),
     Input('theme-store', 'data'),
-    State('store-dataset-meta', 'data')
+    State('store-dataset-meta', 'data'),
+    State('store-analysis-params', 'data')
 )
-def render_content(active_tab, result, deepdive_state, theme, meta):
-
+def render_content(active_tab, result, deepdive_state, theme, meta, params): # theme unused but kept in sig
     try:
         if active_tab == 'tab-dashboard':
-            return render_dashboard_tab(result, meta, theme)
+            return render_dashboard_tab(result, meta)
         elif active_tab == 'tab-deepdive':
-            mode = deepdive_state.get('mode') if deepdive_state else 'top5'
+            mode = deepdive_state.get('mode', 'top5') if deepdive_state else 'top5'
             feat = deepdive_state.get('feature') if deepdive_state else None
             interaction = deepdive_state.get('interaction') if deepdive_state else None
-            return render_deepdive_tab(result, mode, feat, theme, interaction)
-        elif active_tab == 'tab-simulator':
-            return dbc.Alert("Simulator module not yet implemented.", color="secondary")
-        return html.Div(f"Unknown tab: {active_tab}")
+            target_col = params.get('target_col') if params else None
+            return render_deepdive_tab(result, mode, feat, theme, meta, target_col, interaction)
+        return html.Div("Tab Not Found")
     except Exception as e:
-        import traceback
-        traceback.print_exc()
-        return dbc.Alert(f"❌ Error rendering content: {e}", color="danger")
+        import traceback; traceback.print_exc()
+        return dbc.Alert(f"Render Error: {e}", color="danger")
 
 @callback(
     Output('store-deepdive-state', 'data'),
@@ -516,15 +532,19 @@ def render_content(active_tab, result, deepdive_state, theme, meta):
 def update_deepdive_state(mode_vals, feat_vals, int_vals, current_state):
     ctx_id = ctx.triggered_id
     if not ctx_id: return dash.no_update
-    new_state = current_state.copy()
+    print(f"[DEBUG] Update DeepDive State: Trigger={ctx_id}, ModeVals={mode_vals}")
     
-    if 'deepdive-mode' in str(ctx_id) and mode_vals: 
-        new_state['mode'] = mode_vals[0]
-    elif 'deepdive-feat-select' in str(ctx_id) and feat_vals: 
-        new_state['feature'] = feat_vals[0]
-    elif 'deepdive-interaction-select' in str(ctx_id) and int_vals:
-        new_state['interaction'] = int_vals[0]
-        
+    new_state = current_state.copy()
+    # Handle dictionary ID pattern matching
+    trigger_type = ctx_id.get('type') if isinstance(ctx_id, dict) else str(ctx_id)
+    
+    if trigger_type == 'deepdive-mode' and mode_vals:
+         new_state['mode'] = mode_vals[0]
+    elif trigger_type == 'deepdive-feat-select' and feat_vals:
+         new_state['feature'] = feat_vals[0]
+    elif trigger_type == 'deepdive-interaction-select' and int_vals:
+         new_state['interaction'] = int_vals[0]
+    
     return new_state
 
 server = app.server

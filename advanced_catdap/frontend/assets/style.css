@@ -1,79 +1,245 @@
-/* Light Theme Defaults */
-:root {
-    --bg-color: #ffffff;
-    --text-color: #2c3e50;
-    --sidebar-bg: #f8f9fa;
-    --card-bg: #ffffff;
-    --border-color: #e0e0e0;
-}
+/* Hybrid Modern Dark Theme - Assets */
 
-/* Dark Theme Overrides */
-[data-theme="dark"] {
-    --bg-color: #1a1a1a;
-    --text-color: #e0e0e0;
-    --sidebar-bg: #2d2d2d;
-    --card-bg: #333333;
-    --border-color: #444444;
+:root {
+    --neon-cyan: #00f3ff;
+    --neon-magenta: #bc13fe;
+    --neon-green: #0aff0a;
+    --glass-bg: rgba(20, 20, 20, 0.6);
+    --glass-border: 1px solid rgba(255, 255, 255, 0.1);
+    --text-primary: #e0e0e0;
+    --text-secondary: #aaaaaa;
 }
 
 body {
-    background-color: var(--bg-color);
-    color: var(--text-color);
-    transition: background-color 0.3s, color 0.3s;
+    /* Background handled by Cyborg theme, but we can add a subtle gradient if needed */
+    background: radial-gradient(circle at 10% 20%, rgb(20, 20, 20) 0%, rgb(0, 0, 0) 90%);
+    min-height: 100vh;
+    font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
 }
 
-.sidebar {
-    background-color: var(--sidebar-bg) !important;
-    border-right: 1px solid var(--border-color);
+/* Glassmorphism Card */
+.glass-card {
+    background: var(--glass-bg);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: var(--glass-border);
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+    border-radius: 10px;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
 }
 
-.kpi-card {
-    background-color: var(--card-bg) !important;
-    border: 1px solid var(--border-color) !important;
-    color: var(--text-color) !important;
+/* Sticky Sidebar (for Column 3) */
+.sticky-sidebar {
+    position: sticky;
+    top: 1rem;
+    height: calc(100vh - 2rem);
+    overflow-y: auto;
+    z-index: 1000;
 }
 
+/* KPI Cards */
 .kpi-value {
-    color: var(--text-color) !important;
+    font-size: 2rem;
+    font-weight: 700;
+    background: -webkit-linear-gradient(45deg, var(--neon-cyan), #ffffff);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
 }
 
-.main-content {
-    background-color: var(--bg-color);
+.kpi-label {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 1px;
 }
 
-/* Dropdown (React-Select) Styling for Dark Mode */
-[data-theme="dark"] .Select-control {
-    background-color: #333333;
-    border-color: #444444;
+/* Dropdown (React-Select) Overrides for Dark Theme */
+/* Ensures the white default of React-Select works in Dark Mode */
+.Select-control {
+    background-color: rgba(255, 255, 255, 0.05) !important;
+    border: 1px solid rgba(255, 255, 255, 0.2) !important;
+    color: white !important;
 }
-[data-theme="dark"] .Select-value-label {
-    color: #e0e0e0 !important;
+
+.Select-value-label {
+    color: white !important;
 }
-[data-theme="dark"] .Select-menu-outer {
-    background-color: #333333;
-    border-color: #444444;
+
+.Select-menu-outer {
+    background-color: #222 !important;
+    border: 1px solid #444 !important;
+    color: white !important;
+    z-index: 9999 !important;
+    /* Ensure dropdown is on top */
 }
-[data-theme="dark"] .Select-option {
-    background-color: #333333;
-    color: #e0e0e0;
+
+.Select-option {
+    background-color: #222 !important;
+    color: #ddd !important;
 }
-[data-theme="dark"] .Select-option.is-focused {
-    background-color: #444444;
+
+.Select-option:hover {
+    background-color: #444 !important;
 }
-[data-theme="dark"] .form-control, [data-theme="dark"] .form-select {
-    background-color: #333333;
-    border-color: #444444;
-    color: #e0e0e0;
+
+.Select-placeholder {
+    color: #888 !important;
 }
-[data-theme="dark"] .nav-tabs .nav-link.active {
-    background-color: #333333;
-    border-color: #444444;
+
+.Select-arrow-zone {
+    color: white !important;
+}
+
+/* Upload Component Style */
+.upload-box {
+    border: 2px dashed rgba(255, 255, 255, 0.3);
+    border-radius: 5px;
+    text-align: center;
+    padding: 20px;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.upload-box:hover {
+    border-color: var(--neon-cyan);
+    background-color: rgba(0, 243, 255, 0.05);
+}
+
+/* Tabs */
+.nav-tabs .nav-link {
+    color: var(--text-secondary);
+    border: none;
+    border-bottom: 2px solid transparent;
+}
+
+.nav-tabs .nav-link.active {
+    background-color: transparent;
+    border: none;
+    border-bottom: 2px solid var(--neon-magenta);
+    color: white;
+    font-weight: bold;
+}
+
+.nav-tabs {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    margin-bottom: 1rem;
+}
+
+/* Scrollbar styling for Webkit */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: #1a1a1a;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #444;
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #666;
+}
+
+/* Fix Dropdown Overflow/Z-Index Issues */
+.Select-menu-outer {
+    z-index: 9999 !important;
+    position: absolute !important;
+}
+
+.Select-menu {
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.glass-card {
+    overflow: visible !important;
+    /* Ensure dropdowns can spill out */
+}
+
+/* =========================================
+   High Contrast & Visibility Improvements
+   ========================================= */
+
+/* Brighter secondary text */
+.text-secondary {
+    color: #c0c0c0 !important;
+}
+
+/* Form Inputs & Selects */
+input,
+select,
+textarea,
+.form-control,
+.form-select {
+    color: #ffffff !important;
+    background-color: rgba(40, 40, 50, 0.8) !important;
+    border-color: rgba(255, 255, 255, 0.2) !important;
+}
+
+input:focus,
+select:focus,
+textarea:focus,
+.form-control:focus,
+.form-select:focus {
+    color: #ffffff !important;
+    background-color: rgba(60, 60, 70, 0.9) !important;
+    border-color: var(--neon-cyan) !important;
+    box-shadow: 0 0 10px rgba(0, 243, 255, 0.3) !important;
+}
+
+input::placeholder {
+    color: #aaaaaa !important;
+}
+
+/* Disable browser default appearance for selects to ensure custom style */
+select {
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+    background-repeat: no-repeat;
+    background-position: right 1rem center;
+    background-size: 1em;
+    padding-right: 2.5rem;
+}
+
+option {
+    background-color: #222;
+    /* Ensure options have dark background when expanded */
     color: #fff;
-    border-bottom-color: #333333;
 }
-[data-theme="dark"] .nav-tabs .nav-link {
-    color: #aaa;
+
+/* Sliders */
+.rc-slider-mark-text {
+    color: #b0b0b0 !important;
 }
-[data-theme="dark"] .nav-tabs {
-    border-bottom-color: #444444;
+
+.rc-slider-mark-text-active {
+    color: var(--neon-cyan) !important;
+}
+
+/* Accordion */
+.accordion-button {
+    color: #ffffff !important;
+    background-color: rgba(255, 255, 255, 0.05) !important;
+}
+
+.accordion-button:not(.collapsed) {
+    color: var(--neon-cyan) !important;
+    background-color: rgba(0, 243, 255, 0.1) !important;
+    box-shadow: none !important;
+}
+
+.accordion-item {
+    background-color: transparent !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+
+.accordion-body {
+    color: #e0e0e0;
 }
