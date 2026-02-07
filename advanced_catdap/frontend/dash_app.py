@@ -100,7 +100,7 @@ def create_sidebar_content():
             id='upload-data',
             children=html.Div([
                 html.Div("Drag and Drop or Click to Select File", className="text-info mb-2"),
-                html.Div("Supports: CSV, Parquet, Excel", className="small text-secondary")
+                html.Div("Supports: CSV, Parquet", className="small text-secondary")
             ], className="upload-box"),
             multiple=False,
             className="mb-3"
