@@ -55,13 +55,10 @@ async def upload_dataset(file: UploadFile = File(...)):
 
 @app.get("/datasets/{dataset_id}", response_model=DatasetMetadata)
 def get_dataset_metadata(dataset_id: str):
-    path = dataset_manager.storage_dir / f"{dataset_id}.parquet"
-    if not path.exists():
+    try:
+        return dataset_manager.get_dataset_metadata(dataset_id=dataset_id)
+    except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Dataset not found")
-    
-    # In a production app, we would query a database.
-    # Here we re-scan the file to reconstruct metadata.
-    return dataset_manager.register_dataset(str(path), dataset_id=dataset_id) 
 
 
 @app.get("/datasets/{dataset_id}/preview")

@@ -18,6 +18,49 @@ class DatasetManager:
     def _get_connection(self):
         return duckdb.connect(database=':memory:')
 
+    def _build_metadata_from_parquet(
+        self, target_path: Path, dataset_id: str, filename: str
+    ) -> DatasetMetadata:
+        con = self._get_connection()
+        try:
+            rel = con.from_parquet(str(target_path))
+            n_rows = rel.count("*").fetchone()[0]
+            dtypes = rel.types
+            col_names = rel.columns
+
+            cols_info = []
+            for i, col in enumerate(col_names):
+                stats = con.execute(
+                    f"""
+                    SELECT
+                        COUNT("{str(col).replace('"', '""')}") as valid_count,
+                        APPROX_COUNT_DISTINCT("{str(col).replace('"', '""')}") as approx_unique
+                    FROM '{target_path}'
+                """
+                ).fetchone()
+                valid_count, unique_approx = stats
+                missing_count = n_rows - valid_count
+                cols_info.append(
+                    ColumnInfo(
+                        name=col,
+                        dtype=str(dtypes[i]),
+                        missing_count=missing_count,
+                        unique_approx=unique_approx,
+                    )
+                )
+
+            return DatasetMetadata(
+                dataset_id=dataset_id,
+                filename=filename,
+                file_path=str(target_path.absolute()),
+                n_rows=n_rows,
+                n_columns=len(col_names),
+                columns=cols_info,
+                created_at=datetime.now(),
+            )
+        finally:
+            con.close()
+
     def register_dataset(self, file_path: Union[str, Path], dataset_id: Optional[str] = None, original_filename: Optional[str] = None) -> DatasetMetadata:
         """
         Register a dataset (CSV/Parquet) into the managed storage (Parquet).
@@ -45,45 +88,15 @@ class DatasetManager:
             # Copy to storage if not already there (or if converting)
             con.execute(f"COPY (SELECT * FROM {read_cmd}) TO '{target_path}' (FORMAT PARQUET)")
             
-            # Analyze metadata using DuckDB
-            rel = con.from_parquet(str(target_path))
-            n_rows = rel.count('*').fetchone()[0]
-            
-            # Get column types
-            dtypes = rel.types
-            col_names = rel.columns
-            
-            cols_info = []
-            for i, col in enumerate(col_names):
-                # Calculate simple stats
-                stats = con.execute(f"""
-                    SELECT 
-                        COUNT({col}) as valid_count, 
-                        APPROX_COUNT_DISTINCT({col}) as approx_unique 
-                    FROM '{target_path}'
-                """).fetchone()
-                
-                valid_count, unique_approx = stats
-                missing_count = n_rows - valid_count
-                
-                cols_info.append(ColumnInfo(
-                    name=col,
-                    dtype=str(dtypes[i]),
-                    missing_count=missing_count,
-                    unique_approx=unique_approx
-                ))
-
-            metadata = DatasetMetadata(
+            metadata = self._build_metadata_from_parquet(
+                target_path=target_path,
                 dataset_id=dataset_id,
                 filename=original_filename or file_path.name,
-                file_path=str(target_path.absolute()),
-                n_rows=n_rows,
-                n_columns=len(col_names),
-                columns=cols_info,
-                created_at=datetime.now()
             )
             
-            self.logger.info(f"Dataset registered: {dataset_id} ({n_rows} rows)")
+            self.logger.info(
+                "Dataset registered: %s (%s rows)", dataset_id, metadata.n_rows
+            )
             return metadata
 
         except Exception as e:
@@ -137,3 +150,13 @@ class DatasetManager:
             return con.from_parquet(str(path)).count('*').fetchone()[0]
         finally:
             con.close()
+
+    def get_dataset_metadata(self, dataset_id: str, filename: Optional[str] = None) -> DatasetMetadata:
+        target_path = self.storage_dir / f"{dataset_id}.parquet"
+        if not target_path.exists():
+            raise FileNotFoundError(f"Dataset {dataset_id} not found.")
+        return self._build_metadata_from_parquet(
+            target_path=target_path,
+            dataset_id=dataset_id,
+            filename=filename or target_path.name,
+        )
