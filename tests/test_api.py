@@ -92,6 +92,11 @@ def test_get_dataset_metadata_is_read_only(mock_dataset_storage, mock_job_manage
         assert metadata_res.status_code == 200
         assert metadata_res.json()["n_rows"] == 2
         mock_register.assert_not_called()
+def test_cancel_job_returns_501_when_not_supported():
+    with patch("advanced_catdap.service.api.job_manager.cancel_job", side_effect=NotImplementedError("not implemented")):
+        res = client.delete("/jobs/abc123")
+    assert res.status_code == 501
+    assert "not implemented" in res.json()["detail"]
 def test_resolve_cors_settings_defaults(monkeypatch):
     monkeypatch.delenv("CATDAP_CORS_ALLOW_ORIGINS", raising=False)
     monkeypatch.delenv("CATDAP_CORS_ALLOW_CREDENTIALS", raising=False)

@@ -102,5 +102,5 @@ class JobManager:
             
     def cancel_job(self, job_id: str):
         # Local process cancellation is hard without PID tracking.
-        # For MVP, we just ignore it.
-        pass
+        # For now, keep API truthful instead of returning a fake success.
+        raise NotImplementedError("Job cancellation is not implemented for local executor.")
