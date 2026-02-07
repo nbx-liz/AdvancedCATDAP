@@ -53,3 +53,24 @@ def test_invalid_format(manager, tmp_path):
     txt_file.write_text("hello")
     with pytest.raises(ValueError, match="Unsupported format"):
         manager.register_dataset(txt_file)
+
+
+def test_register_dataset_with_special_column_names(manager, tmp_path):
+    csv_file = tmp_path / "special_cols.csv"
+    df_in = pd.DataFrame(
+        {
+            "select": [1, 2, None],
+            "a b": ["x", None, "z"],
+            "a-b": [10.0, 10.0, 10.0],
+            'quote"col': [None, 1, 1],
+        }
+    )
+    df_in.to_csv(csv_file, index=False)
+
+    meta = manager.register_dataset(csv_file)
+    by_name = {c.name: c for c in meta.columns}
+    assert set(by_name) == {"select", "a b", "a-b", 'quote"col'}
+    assert by_name["select"].missing_count == 1
+    assert by_name["a b"].missing_count == 1
+    assert by_name['quote"col'].missing_count == 1
+    assert by_name["a-b"].unique_approx >= 1
