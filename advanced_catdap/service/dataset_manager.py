@@ -18,6 +18,11 @@ class DatasetManager:
     def _get_connection(self):
         return duckdb.connect(database=':memory:')
 
+    @staticmethod
+    def _quote_identifier(name: str) -> str:
+        """Quote SQL identifiers safely for DuckDB."""
+        return '"' + str(name).replace('"', '""') + '"'
+
     def register_dataset(self, file_path: Union[str, Path], dataset_id: Optional[str] = None, original_filename: Optional[str] = None) -> DatasetMetadata:
         """
         Register a dataset (CSV/Parquet) into the managed storage (Parquet).
@@ -36,14 +41,14 @@ class DatasetManager:
         try:
             # Detect format and load
             if file_path.suffix.lower() == '.csv':
-                read_cmd = f"read_csv_auto('{file_path}')"
+                rel = con.read_csv(str(file_path), header=True)
             elif file_path.suffix.lower() == '.parquet':
-                read_cmd = f"read_parquet('{file_path}')"
+                rel = con.from_parquet(str(file_path))
             else:
                  raise ValueError("Unsupported format. Only CSV and Parquet are supported.")
 
             # Copy to storage if not already there (or if converting)
-            con.execute(f"COPY (SELECT * FROM {read_cmd}) TO '{target_path}' (FORMAT PARQUET)")
+            rel.to_parquet(str(target_path))
             
             # Analyze metadata using DuckDB
             rel = con.from_parquet(str(target_path))
@@ -56,12 +61,10 @@ class DatasetManager:
             cols_info = []
             for i, col in enumerate(col_names):
                 # Calculate simple stats
-                stats = con.execute(f"""
-                    SELECT 
-                        COUNT({col}) as valid_count, 
-                        APPROX_COUNT_DISTINCT({col}) as approx_unique 
-                    FROM '{target_path}'
-                """).fetchone()
+                quoted = self._quote_identifier(col)
+                stats = rel.aggregate(
+                    f"COUNT({quoted}) AS valid_count, APPROX_COUNT_DISTINCT({quoted}) AS approx_unique"
+                ).fetchone()
                 
                 valid_count, unique_approx = stats
                 missing_count = n_rows - valid_count
