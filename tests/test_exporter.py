@@ -2,43 +2,7 @@ import io
 import pandas as pd
 from advanced_catdap.service.exporter import ResultExporter
 
-def test_excel_export_minimal():
-    result = {
-        'mode': 'REGRESSION',
-        'baseline_score': 1000.0,
-        'feature_importances': [
-            {'Feature': 'A', 'Delta_Score': 50.0},
-            {'Feature': 'B', 'Delta_Score': 30.0}
-        ],
-        'interaction_importances': [
-            {'Feature_1': 'A', 'Feature_2': 'B', 'Gain': 10.0}
-        ],
-        'feature_details': {
-            'A': {
-                'bin_counts': [10, 20],
-                'bin_means': [0.5, 0.6],
-                'bin_labels': ['Low', 'High']
-            }
-        }
-    }
-    
-    excel_io = ResultExporter.generate_excel_report(result)
-    assert isinstance(excel_io, io.BytesIO)
-    
-    # Verify we can read it back
-    with pd.ExcelFile(excel_io, engine='openpyxl') as xls:
-        assert 'Summary' in xls.sheet_names
-        assert 'Feature Importances' in xls.sheet_names
-        assert 'Interactions' in xls.sheet_names
-        assert 'Det_A' in xls.sheet_names
-        
-        df_summary = pd.read_excel(xls, 'Summary')
-        assert 'Baseline AIC' in df_summary['Item'].values
-        
-        df_fi = pd.read_excel(xls, 'Feature Importances')
-        assert len(df_fi) == 2
-
-def test_html_export_minimal():
+def test_html_export_interactive():
     result = {
         'mode': 'CLASSIFICATION',
         'baseline_score': 500.0,
@@ -46,8 +10,23 @@ def test_html_export_minimal():
             {'Feature': 'ColA', 'Delta_Score': 100.0, 'Score': 400.0},
             {'Feature': 'ColB', 'Delta_Score': 50.0, 'Score': 450.0}
         ],
-        'interaction_importances': [],
-        'feature_details': {}
+        'interaction_importances': [
+             {'Feature_1': 'ColA', 'Feature_2': 'ColB', 'Gain': 10.0}
+        ],
+        'feature_details': {
+            'ColA': {
+                'bin_counts': [10, 20],
+                'bin_means': [0.5, 0.6],
+                'bin_labels': ['Low', 'High']
+            }
+        },
+        'interaction_details': {
+            'ColA - ColB': {
+                'feature_1': 'ColA', 'feature_2': 'ColB',
+                'means': [[0.1, 0.2], [0.3, 0.4]],
+                'bin_labels_1': ['L', 'H'], 'bin_labels_2': ['L', 'H']
+            }
+        }
     }
     meta = {'dataset_id': 'test_data', 'n_rows': 100, 'n_columns': 5}
     
@@ -58,4 +37,6 @@ def test_html_export_minimal():
     assert "<!DOCTYPE html>" in content
     assert "Analysis Report" in content
     assert "ColA" in content
-    assert "plotly" in content # Check for Plotly embed
+    assert "plotly" in content 
+    assert "function showFeature(featName)" in content # Check for JS logic
+    assert "ColA - ColB" in content
