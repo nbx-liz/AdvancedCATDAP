@@ -80,6 +80,18 @@ def test_upload_and_flow(mock_dataset_storage, mock_job_manager):
     assert res_status.json()["status"] == "SUCCESS"
 
 
+def test_get_dataset_metadata_is_read_only(mock_dataset_storage, mock_job_manager):
+    csv_content = "A,B,target\n1,x,0\n2,y,1"
+    files = {"file": ("test.csv", csv_content, "text/csv")}
+    upload_res = client.post("/datasets", files=files)
+    assert upload_res.status_code == 200
+    dataset_id = upload_res.json()["dataset_id"]
+
+    with patch.object(api_module.dataset_manager, "register_dataset") as mock_register:
+        metadata_res = client.get(f"/datasets/{dataset_id}")
+        assert metadata_res.status_code == 200
+        assert metadata_res.json()["n_rows"] == 2
+        mock_register.assert_not_called()
 def test_cancel_job_returns_501_when_not_supported():
     with patch("advanced_catdap.service.api.job_manager.cancel_job", side_effect=NotImplementedError("not implemented")):
         res = client.delete("/jobs/abc123")
