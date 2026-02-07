@@ -24,7 +24,8 @@ def test_html_export_interactive():
             'ColA - ColB': {
                 'feature_1': 'ColA', 'feature_2': 'ColB',
                 'means': [[0.1, 0.2], [0.3, 0.4]],
-                'bin_labels_1': ['L', 'H'], 'bin_labels_2': ['L', 'H']
+                'counts': [[10, 20], [30, 40]],
+                'bin_labels_1': ['Lo', 'Hi'], 'bin_labels_2': ['A', 'B']
             }
         }
     }

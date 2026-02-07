@@ -1,6 +1,6 @@
 # Project History: Dash Migration (February 2026)
 
-This document records the technical decisions, challenges, and solutions encountered during the migration of AdvancedCATDAP from a Streamlit web app to a Dash-based desktop application.
+This document records the technical decisions, challenges, and solutions encountered during the migration of AdvancedCATDAP from a Streamlit web app to a Dash-based desktop application, as well as subsequent enhancement rounds.
 
 ## 🎯 Objective
 Migrate the frontend to **Dash** to improve desktop integration (via `pywebview`), performance, and control over UI theming/layout, while retaining the existing FastAPI backend.
@@ -51,20 +51,27 @@ Migrate the frontend to **Dash** to improve desktop integration (via `pywebview`
 *   **Cause**: These tests targeted the old `streamlit` app and mocked Streamlit components that are no longer relevant or compatible with the new environment.
 *   **Solution**: Deleted legacy tests. Validated the system using the existing backend tests (which cover the core logic) and a new startup verification script.
 
-## 📝 Usage
+---
 
-### Running the App
-```bash
-# Production entry point
-uv run python scripts/windows_main.py
-```
+## ⚠️ 最近のアップデートと継続的な課題 (HTMLレポート)
 
-### Development
-```bash
-# Run Dash server standalone (hot-reload enabled)
-uv run python -m advanced_catdap.frontend.dash_app
-```
+Dashへの移行成功後、HTMLレポートの強化（WebGUIとの整合性向上）に取り組んできましたが、現在も多くの課題が未解決です。
 
-## 🔮 Future Roadmap
-1.  **Simulator Tab**: Implement "What-If" analysis using the `transform` method on modified inputs.
-2.  **E2E Testing**: Implement Playwright tests to verify clicking through tabs and interactions automatically.
+### HTMLレポート改善の試み (Round 9〜13):
+
+| Phase | 主な対応内容 | 現状と残存課題 |
+| :--- | :--- | :--- |
+| **Round 9-11** | インタラクティブHTML生成の導入。メトリクス（Delta AIC）の同期。 | **課題**: レポートとGUIで数値が一致しない（例: 0-10 vs 4000）。 |
+| **Round 12** | チャートスタイルの統一 (`apply_chart_style`)、フォント色の修正。 | **課題**: 背景色と文字色の不一致による視認性不良の継続。 |
+| **Round 13** | `cyborg`テーマの適用、`style.css`の埋め込み、欠落項目の追加。 | **課題**: KPIが見えない、統計テーブルが不鮮明、データが依然として不正確。 |
+
+### 未解決の主な障壁:
+- **データ抽出の乖離**: `exporter.py` (静的生成) と `dash_app.py` (動的制御) の間で、データのスケーリングやフィルタリング処理が同期できていない。
+- **CSSの競合**: スタンドアロンHTML内での外部ライブラリ (CDN) とカスタムCSSの優先順位制御が非常に困難。
+- **エスケープ処理**: f-string内部でのエスケープが不完全であり、特定のブラウザ環境でスクリプトやスタイルが崩れる。
+
+## 📈 現状の総括
+WebGUI本体は安定して動作していますが、輸出用のHTMLレポート機能については、正確性と視覚的再現性の両面で、ユーザーの要求水準に達していないのが現状の記録です。
+
+---
+*最終更新日: 2026-02-07*

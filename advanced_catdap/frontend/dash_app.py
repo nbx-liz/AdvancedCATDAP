@@ -208,20 +208,25 @@ def render_deepdive_tab(result, selected_mode, selected_feature, theme, meta=Non
                         {'label': 'Top 5 Drivers', 'value': 'top5'},
                         {'label': 'Select Feature', 'value': 'select'}
                     ],
-                    value=selected_mode or 'top5', inline=True,
-                    className="mb-2"
+                    value=selected_mode or 'top5',
+                    className="btn-group",
+                    inputClassName="btn-check",
+                    labelClassName="btn btn-outline-info",
+                    labelCheckedClassName="active",
                 )
             ], md=5),
             dbc.Col([
-                dbc.Label("2. Select Feature", className="text-info small"),
-                dbc.Select(
-                    id={'type': 'deepdive-feat-select', 'index': 0},
-                    options=[{'label': f, 'value': f} for f in dropdown_features],
-                    value=selected_feature or (dropdown_features[0] if dropdown_features else None),
-                    placeholder="Select feature...",
-                    disabled=(selected_mode != 'select'),
-                    # className handled by css overrides
-                )
+                html.Div([
+                    dbc.Label("2. Select Feature", className="text-info small"),
+                    dbc.Select(
+                        id={'type': 'deepdive-feat-select', 'index': 0},
+                        options=[{'label': f, 'value': f} for f in dropdown_features],
+                        value=selected_feature or (dropdown_features[0] if dropdown_features else None),
+                        placeholder="Select feature...",
+                        # disabled handled by callback, but visibility is better
+                        className="mb-3"
+                    )
+                ], id={'type': 'feature-select-container', 'index': 0}, style={'display': 'none' if selected_mode == 'top5' else 'block'})
             ], md=8)
         ], className="align-items-center")
     ], className="glass-card p-3 mb-3")
@@ -575,13 +580,14 @@ def poll_job(n, job_id):
     State("store-analysis-result", "data"),
     State("store-dataset-meta", "data"),
     State("report-filename-input", "value"),
+    State("theme-store", "data"),
     prevent_initial_call=True
 )
-def download_html_report(n_clicks, result, meta, custom_filename):
+def download_html_report(n_clicks, result, meta, custom_filename, theme):
     if not n_clicks or not result: return dash.no_update
     
     # Generate filename
-    print(f"[DEBUG] Export requested. Filename input: {custom_filename}")
+    print(f"[DEBUG] Export requested. Filename input: {custom_filename}, Theme: {theme}")
     if custom_filename and custom_filename.strip():
         filename = custom_filename.strip()
         if not filename.lower().endswith(".html"):
@@ -602,7 +608,7 @@ def download_html_report(n_clicks, result, meta, custom_filename):
         filename = f"{original_name}_Report_{timestamp}.html"
     
     try:
-        html_io = ResultExporter.generate_html_report(result, meta)
+        html_io = ResultExporter.generate_html_report(result, meta, theme=theme)
         return dcc.send_bytes(html_io.getvalue(), filename)
     except Exception as e:
         print(f"[ERROR] Export failed: {e}")

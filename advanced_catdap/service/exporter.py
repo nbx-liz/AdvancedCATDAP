@@ -16,15 +16,31 @@ class ResultExporter:
     """Service to export analysis results to various formats."""
 
     @staticmethod
-
+    def apply_chart_style(fig, is_dark=True):
+        """Apply modern dark styling to Plotly figures (Matched to GUI)"""
+        template = "plotly_dark" if is_dark else "plotly"
+        text_color = "#e0e0e0" if is_dark else "#333"
+        
+        fig.update_layout(
+            template=template,
+            paper_bgcolor='rgba(0,0,0,0)',
+            plot_bgcolor='rgba(0,0,0,0)',
+            font=dict(family="Segoe UI", size=12, color=text_color),
+            title_font=dict(size=16, color="#00f3ff" if is_dark else "#333"),
+            margin=dict(l=40, r=20, t=50, b=40)
+        )
+        return fig
 
     @staticmethod
-    def generate_html_report(result: Dict[str, Any], meta: Dict[str, Any] = None) -> io.BytesIO:
+    def generate_html_report(result: Dict[str, Any], meta, theme='dark'):
         """
         Generate a stand-alone HTML report with high interactivity (Client-side JS).
         Includes charts for ALL features and ALL interactions.
         """
         output = io.BytesIO()
+        
+        # Determine strict mode
+        is_dark = (theme == 'dark' or theme == 'cyborg')
         
         # 1. Summary Data
         baseline = result.get('baseline_score', 0)
@@ -45,24 +61,29 @@ class ResultExporter:
             df_fi = pd.DataFrame(fi_data)
             col_map = {c.lower(): c for c in df_fi.columns}
             feat_col = col_map.get('feature', 'Feature')
-            delta_col = col_map.get('delta_score', 'Delta_Score')
+            delta_col = col_map.get('delta_score', col_map.get('deltascore', 'Delta_Score'))
             
-            if feat_col in df_fi.columns and delta_col in df_fi.columns:
-                # MATCH GUI LOGIC: Top 15 by Delta AIC, then sorted
-                df_top = df_fi.nlargest(15, delta_col).sort_values(delta_col, ascending=True)
+            if feat_col in df_fi.columns:
+                delta_col = col_map.get('delta_score', col_map.get('deltascore', 'Delta_Score'))
                 
-                fig_fi = px.bar(
-                    df_top, x=delta_col, y=feat_col, orientation='h',
-                    title="Top Features by Impact (Delta AIC)",
-                    color=delta_col,
-                    color_continuous_scale="Bluyl"
-                )
-                fig_fi.update_layout(
-                    height=500, # Fixed height for Top 15
-                    margin=dict(l=20, r=20, t=40, b=20),
-                    paper_bgcolor='rgba(0,0,0,0)',
-                    plot_bgcolor='rgba(0,0,0,0)'
-                )
+                if delta_col in df_fi.columns:
+                    # MATCH GUI LOGIC: Top 15 by Delta AIC, then sorted
+                    df_top = df_fi.nlargest(15, delta_col).sort_values(delta_col, ascending=True)
+                    
+                    fig_fi = px.bar(
+                        df_top, x=delta_col, y=feat_col, orientation='h',
+                        title="Top Features by Impact (Delta AIC)",
+                        color=delta_col,
+                        color_continuous_scale="Bluyl"
+                    )
+                    # Explicitly set texttemplate to avoid 'text_auto' issues in static HTML
+                    fig_fi.update_traces(texttemplate='%{x:.4s}', textposition='outside', marker_line_width=0)
+                    
+                    # Apply standardized style
+                    ResultExporter.apply_chart_style(fig_fi, is_dark)
+                    
+                    # Add specific margins for bar chart text
+                    fig_fi.update_layout(margin=dict(r=50))
 
         # Interactions Heatmap (Global)
         fig_heat = go.Figure()
@@ -80,11 +101,7 @@ class ResultExporter:
                     title="Global Interaction Network",
                     color_continuous_scale="Viridis"
                 )
-                fig_heat.update_layout(
-                     margin=dict(l=20, r=20, t=40, b=20),
-                     paper_bgcolor='rgba(0,0,0,0)',
-                     plot_bgcolor='rgba(0,0,0,0)'
-                )
+                ResultExporter.apply_chart_style(fig_heat, is_dark)
         
         # 3. Feature Details (All Features)
         feature_details = result.get('feature_details', {})
@@ -117,11 +134,12 @@ class ResultExporter:
                 yaxis=dict(title="Count"),
                 yaxis2=dict(title="Target", overlaying='y', side='right', showgrid=False),
                 legend=dict(orientation='h', y=1.15, x=1, xanchor='right'),
-                height=400,
-                margin=dict(l=40, r=40, t=60, b=40),
-                paper_bgcolor='rgba(0,0,0,0)',
-                plot_bgcolor='rgba(0,0,0,0)'
+                height=400
             )
+            ResultExporter.apply_chart_style(sub_fig, is_dark)
+            # Add specific margins
+            sub_fig.update_layout(margin=dict(l=40, r=40, t=80, b=40))
+
             feature_plots[feat] = pio.to_html(sub_fig, full_html=False, include_plotlyjs=False)
             
             # Table
@@ -145,16 +163,41 @@ class ResultExporter:
                 fig_int.update_layout(
                     title=f"Interaction: {det['feature_1']} vs {det['feature_2']}",
                     height=500,
-                    margin=dict(l=40, r=40, t=50, b=40),
-                    paper_bgcolor='rgba(0,0,0,0)',
-                    plot_bgcolor='rgba(0,0,0,0)'
                 )
+                ResultExporter.apply_chart_style(fig_int, is_dark)
+                # Add specific margins
+                fig_int.update_layout(margin=dict(l=40, r=40, t=80, b=100))
                 interaction_charts[pair_key] = pio.to_html(fig_int, full_html=False, include_plotlyjs=False)
                 
-                # Table for Interaction (Target Mean Matrix) or similar summary
-                # Let's show as a wide table to mimic the heatmap
-                df_int_table = pd.DataFrame(det['means'], index=det['bin_labels_1'], columns=det['bin_labels_2'])
-                interaction_stats[pair_key] = df_int_table.to_html(classes="table table-sm table-bordered table-hover", float_format="%.4f")
+                # Interaction Tables (Sample Count & Target Mean)
+                df_counts = pd.DataFrame(det['counts'], index=det['bin_labels_1'], columns=det['bin_labels_2'])
+                df_means = pd.DataFrame(det['means'], index=det['bin_labels_1'], columns=det['bin_labels_2'])
+                
+                # Format means
+                df_means = df_means.map(lambda x: f"{x:.4f}" if isinstance(x, (float, int)) else x)
+
+                # Reset index for display
+                df_counts_disp = df_counts.reset_index().rename(columns={'index': det['feature_1']})
+                df_means_disp = df_means.reset_index().rename(columns={'index': det['feature_1']})
+
+                # Two tables side-by-side
+                table_counts_html = df_counts_disp.to_html(classes="table table-glass table-sm table-bordered table-hover", index=False)
+                table_means_html = df_means_disp.to_html(classes="table table-glass table-sm table-bordered table-hover", index=False)
+                
+                # Combine into grid
+                combined_html = f"""
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6 class="text-secondary mt-3">Sample Count Matrix</h6>
+                        <div class="table-responsive">{table_counts_html}</div>
+                    </div>
+                    <div class="col-md-6">
+                        <h6 class="text-secondary mt-3">Target Mean Matrix</h6>
+                        <div class="table-responsive">{table_means_html}</div>
+                    </div>
+                </div>
+                """
+                interaction_stats[pair_key] = combined_html
 
         # HTML Assembly
         html_content = f"""
@@ -163,235 +206,294 @@ class ResultExporter:
         <head>
             <title>AdvancedCATDAP Report</title>
             <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
-            <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+            <!-- Use Bootswatch CYBORG Theme for Dark Mode Consistency -->
+            <link href="https://cdn.jsdelivr.net/npm/bootswatch@5.3.0/dist/cyborg/bootstrap.min.css" rel="stylesheet">
             <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
             <style>
-                :root {{
-                    /* Light Mode (Default) */
-                    --bg-color: #f8f9fa;
-                    --text-color: #333;
-                    --card-bg: #fff;
-                    --card-border: none;
-                    --header-bg: linear-gradient(135deg, #0d6efd 0%, #0dcaf0 100%);
-                    --table-color: #333;
-                    --table-bg: #fff;
-                    --table-border-color: #dee2e6;
-                    --table-head-bg: #e9ecef;
-                    --select-bg: #fff;
-                    --select-color: #333;
-                }}
-                
-                body.dark-mode {{
-                    /* GUI-Like Dark Mode (Cyborg/Hybrid) */
-                    --bg-color: #060606;
-                    --text-color: #e0e0e0;
-                    --card-bg: rgba(20, 20, 20, 0.6); /* Glass effect base */
-                    --card-border: 1px solid rgba(255, 255, 255, 0.1);
-                    --header-bg: linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%);
-                    --table-color: #e0e0e0;
-                    --table-bg: transparent; /* Transparent for glass effect */
-                    --table-border-color: rgba(255, 255, 255, 0.1);
-                    --table-head-bg: rgba(0, 243, 255, 0.1); /* Neon Cyan tint */
-                    --table-head-color: #00f3ff; /* Neon Cyan */
-                    --select-bg: #1a1a1a;
-                    --select-color: #e0e0e0;
-                }}
-                
-                body {{ 
-                    background-color: var(--bg-color); 
-                    color: var(--text-color); 
-                    transition: background-color 0.3s, color 0.3s; 
-                    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-                    background-image: var(--bg-image, none);
-                }}
-                
-                body.dark-mode {{
-                     background: radial-gradient(circle at 10% 20%, rgb(20, 20, 20) 0%, rgb(0, 0, 0) 90%);
-                }}
-                
-                .card {{ 
-                    background-color: var(--card-bg); 
-                    color: var(--text-color); 
-                    margin-bottom: 20px; 
-                    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37); /* Stronger shadow */
-                    border: var(--card-border); 
-                    backdrop-filter: blur(12px);
-                    -webkit-backdrop-filter: blur(12px);
-                    border-radius: 10px;
-                }}
-                .header {{ background: var(--header-bg); color: white; padding: 20px; margin-bottom: 30px; border-radius: 0 0 20px 20px; position: relative; }}
-                .nav-pills .nav-link.active {{ background-color: #0d6efd; }}
-                .plot-container {{ width: 100%; }}
-                .hidden {{ display: none; }}
-                
-                /* Table Styling - Glassmorphism Match */
-                table {{ color: #e0e0e0 !important; background-color: var(--table-bg) !important; }}
-                .table {{ --bs-table-bg: var(--table-bg); --bs-table-color: #e0e0e0; --bs-table-border-color: var(--table-border-color); }}
-                .table tbody td {{ color: #e0e0e0 !important; }} /* Force cell text color */
-                .table thead th {{ 
-                    background-color: var(--table-head-bg) !important; 
-                    color: var(--table-head-color) !important; 
-                    border-bottom: 1px solid var(--table-head-color) !important; 
-                    font-weight: 600;
-                }}
-                .table-hover tbody tr:hover td {{ color: var(--text-color); background-color: rgba(255,255,255,0.05); }}
-                body.dark-mode .table-hover tbody tr:hover td {{ background-color: rgba(255,255,255,0.1); }}
-                
-                /* Select High Contrast */
-                select.form-select {{
-                    background-color: var(--select-bg);
-                    color: var(--select-color);
-                    border-color: var(--text-color);
-                    border-radius: 5px;
-                }}
-                
-                #theme-toggle {{
-                    position: absolute;
-                    top: 20px;
-                    right: 20px;
-                    background: transparent;
-                    border: 1px solid white;
-                    color: white;
-                    border-radius: 20px;
-                    padding: 5px 15px;
-                    cursor: pointer;
-                }}
+/* Hybrid Modern Dark Theme - Assets */
+:root {{
+    --neon-cyan: #00f3ff;
+    --neon-magenta: #bc13fe;
+    --neon-green: #0aff0a;
+    --glass-bg: rgba(20, 20, 20, 0.6);
+    --glass-border: 1px solid rgba(255, 255, 255, 0.1);
+    --text-primary: #e0e0e0;
+    --text-secondary: #aaaaaa;
+}}
+
+body {{
+    background: radial-gradient(circle at 10% 20%, rgb(20, 20, 20) 0%, rgb(0, 0, 0) 90%);
+    min-height: 100vh;
+    font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    color: var(--text-primary);
+}}
+
+.glass-card {{
+    background: var(--glass-bg);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: var(--glass-border);
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+    border-radius: 10px;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+    overflow: visible !important;
+}}
+
+.kpi-value {{
+    font-size: 2rem;
+    font-weight: 700;
+    background: -webkit-linear-gradient(45deg, var(--neon-cyan), #ffffff);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: var(--neon-cyan);
+}}
+
+.kpi-label {{
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}}
+
+.table-glass {{
+    --bs-table-bg: rgba(30, 30, 40, 0.4);
+    --bs-table-color: #e0e0e0;
+    --bs-table-border-color: rgba(255, 255, 255, 0.1);
+    color: #e0e0e0;
+    border-collapse: separate;
+    border-spacing: 0;
+    width: 100%;
+    margin-bottom: 1rem;
+}}
+
+.table-glass th {{
+    background-color: rgba(0, 243, 255, 0.1) !important;
+    color: var(--neon-cyan) !important;
+    font-weight: 600;
+    border-bottom: 1px solid var(--neon-cyan);
+}}
+
+.table-glass td {{
+    vertical-align: middle;
+    color: #e0e0e0;
+}}
+
+.table-glass.table-hover tbody tr:hover td {{
+    background-color: rgba(255, 255, 255, 0.1);
+    color: white;
+}}
+
+/* Visibility Utilities */
+h1, h2, h3, h4, h5, h6 {{ color: #e0e0e0; }}
+.text-info {{ color: var(--neon-cyan) !important; }}
+.text-muted {{ color: var(--text-secondary) !important; }}
+
+select.form-select {{
+    background-color: #222;
+    color: #e0e0e0;
+    border: 1px solid #444;
+}}
+
+/* Helper for Dropdown Logic */
+.hidden {{
+    display: none !important;
+}}
             </style>
         </head>
-        <body>
-            <div class="header text-center">
-                <h1>AdvancedCATDAP Report</h1>
-                <p>Dataset: {meta.get('dataset_id', 'N/A') if meta else 'N/A'} | Target: {meta.get('target', 'N/A')}</p>
-                <button id="theme-toggle" onclick="toggleTheme()">
-                    <i class="bi bi-moon-stars-fill"></i> Toggle Theme
-                </button>
+        <body class="{'dark-mode' if is_dark else ''}">
+            <div class="header-section">
+                <div class="container">
+                    <div class="d-flex align-items-center justify-content-between">
+                         <div>
+                            <h1><i class="bi bi-cpu-fill me-2"></i>AdvancedCATDAP Report</h1>
+                            <p class="mb-0 opacity-75">Interactive Analysis Results</p>
+                         </div>
+                         <div class="text-end">
+                            <p class="mb-0">{pd.Timestamp.now().strftime('%Y-%m-%d %H:%M')}</p>
+                            <small>{meta.get('filename') if meta else 'Dataset'}</small>
+                         </div>
+                    </div>
+                </div>
             </div>
             
-            <div class="container-fluid px-4">
-                <!-- Summary Section -->
+            <div class="container">
+                <!-- Summary KPI -->
                 <div class="row mb-4">
                     <div class="col-md-3">
-                        <div class="card p-3 h-100">
-                            <h5 class="text-primary">Summary</h5>
-                            <hr>
-                            <p><strong>Baseline AIC:</strong> {baseline:,.0f}</p>
-                            <p><strong>Optimized AIC:</strong> {best_aic:,.0f}</p>
-                            <p><strong>Feature Count:</strong> {len(fi_data)}</p>
+                        <div class="glass-card text-center">
+                            <h6 class="text-muted text-uppercase mb-2">Baseline AIC</h6>
+                            <h2 class="mb-0">{baseline:,.0f}</h2>
+                        </div>
+                    </div>
+                     <div class="col-md-3">
+                        <div class="glass-card text-center">
+                            <h6 class="text-muted text-uppercase mb-2">Optimized AIC</h6>
+                            <h2 class="mb-0" style="color: #0aff0a">{best_aic:,.0f}</h2>
+                            <small class="text-success">Improv: {(baseline - best_aic):,.0f}</small>
+                        </div>
+                    </div>
+                     <div class="col-md-3">
+                        <div class="glass-card text-center">
+                            <h6 class="text-muted text-uppercase mb-2">Selected Features</h6>
+                            <h2 class="mb-0">{len(fi_data)}</h2>
+                        </div>
+                    </div>
+                     <div class="col-md-3">
+                        <div class="glass-card text-center">
+                            <h6 class="text-muted text-uppercase mb-2">Model Type</h6>
+                             <h2 class="mb-0 text-uppercase">{result.get('mode', 'N/A')}</h2>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Global Charts -->
+                <div class="row mb-5">
+                    <div class="col-md-6">
+                        <div class="glass-card">
+                             <!-- Feature Importance -->
+                             {pio.to_html(fig_fi, full_html=False, include_plotlyjs=False)}
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="glass-card">
+                             <!-- Interaction Network -->
+                             {pio.to_html(fig_heat, full_html=False, include_plotlyjs=False)}
+                        </div>
+                    </div>
+                </div>
+        """
+        
+        # Feature Selection Dropdown
+        feature_options = "".join([f'<option value="{f}">{f}</option>' for f in all_features])
+        
+        html_content += f"""
+                <h3 class="mb-4 text-info"><i class="bi bi-bar-chart-fill me-2"></i>Feature Details</h3>
+                
+                <div class="glass-card mb-4">
+                    <div class="row align-items-center">
+                        <div class="col-md-4">
+                            <label class="form-label text-muted mb-0">Select Feature to Inspect:</label>
+                        </div>
+                        <div class="col-md-8">
+                            <select class="form-select" onchange="showFeature(this.value)" style="background-color: var(--select-bg); color: var(--select-color); border-color: var(--table-border-color);">
+                                {feature_options}
+                            </select>
                         </div>
                     </div>
                 </div>
                 
-                <ul class="nav nav-pills mb-3" id="pills-tab" role="tablist">
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link active" id="pills-dashboard-tab" data-bs-toggle="pill" data-bs-target="#pills-dashboard" type="button">Dashboard</button>
-                    </li>
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link" id="pills-features-tab" data-bs-toggle="pill" data-bs-target="#pills-features" type="button">Feature Details</button>
-                    </li>
-                     <li class="nav-item" role="presentation">
-                        <button class="nav-link" id="pills-interactions-tab" data-bs-toggle="pill" data-bs-target="#pills-interactions" type="button">Interactions</button>
-                    </li>
-                </ul>
+                <div id="feature-details-container" class="mb-5">
+        """
+        
+        # Loop features - Generate Hidden Divs
+        for i, feat in enumerate(all_features):
+            chart_html = feature_plots.get(feat, "")
+            table_html = feature_stats.get(feat, "")
+            # Show first feature by default, hide others
+            is_hidden = 'hidden' if i > 0 else '' 
+            
+            html_content += f"""
+                    <div id="chart_{feat}" class="feature-chart {is_hidden}">
+                        <div class="glass-card mb-4" style="border: var(--card-border); background: var(--card-bg);">
+                            <h4 class="text-center mb-0 p-2" style="color: var(--text-color); border-bottom: 1px solid var(--table-border-color);">{feat}</h4>
+                            <div class="p-3">
+                                {chart_html}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div id="table_{feat}" class="feature-table {is_hidden}">
+                        <div class="glass-card mb-4" style="border: var(--card-border); background: var(--card-bg);">
+                            <div class="p-3">
+                                <h6 class="text-muted mb-3">Binning Statistics</h6>
+                                <div class="table-responsive">
+                                    {table_html}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+            """
+            
+        html_content += "</div>"
+
+        # Interaction Selection Dropdown
+        int_options = "".join([f'<option value="{p}">{p}</option>' for p in all_interactions])
+        
+        html_content += f"""
+                <h3 class="mb-4 text-info"><i class="bi bi-diagram-3-fill me-2"></i>Interaction Deep Dive</h3>
                 
-                <div class="tab-content" id="pills-tabContent">
-                    <!-- Dashboard Tab -->
-                    <div class="tab-pane fade show active" id="pills-dashboard" role="tabpanel">
-                        <div class="row">
-                            <div class="col-lg-6">
-                                <div class="card p-2">
-                                    {pio.to_html(fig_fi, full_html=False, include_plotlyjs=False)}
-                                </div>
-                            </div>
-                            <div class="col-lg-6">
-                                <div class="card p-2">
-                                    {pio.to_html(fig_heat, full_html=False, include_plotlyjs=False)}
-                                </div>
-                            </div>
+                <div class="glass-card mb-4">
+                    <div class="row align-items-center">
+                         <div class="col-md-4">
+                            <label class="form-label text-muted mb-0">Select Interaction Pair:</label>
                         </div>
-                    </div>
-
-                    <!-- Feature Details Tab -->
-                    <div class="tab-pane fade" id="pills-features" role="tabpanel">
-                        <div class="row">
-                            <div class="col-md-3">
-                                <div class="card p-3" style="max-height: 80vh; overflow-y: auto;">
-                                    <label class="form-label fw-bold">Select Feature:</label>
-                                    <select class="form-select" id="featureSelect" onchange="showFeature(this.value)">
-                                        {''.join([f'<option value="{f}">{f}</option>' for f in all_features])}
-                                    </select>
-                                </div>
-                            </div>
-                            <div class="col-md-9">
-                                <div class="row">
-                                    <div class="col-lg-8">
-                                        <div class="card p-2" id="featureChartContainer">
-                                            <!-- Feature Charts Injected Here via JS Logic (Pre-rendered hidden divs) -->
-                                            {''.join([f'<div id="chart_{f}" class="feature-chart hidden">{plot}</div>' for f, plot in feature_plots.items()])}
-                                        </div>
-                                    </div>
-                                    <div class="col-lg-4">
-                                        <div class="card p-3">
-                                            <h6 class="text-secondary">Statistics</h6>
-                                             {''.join([f'<div id="table_{f}" class="feature-table hidden">{tbl}</div>' for f, tbl in feature_stats.items()])}
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                     <!-- Interactions Tab -->
-                    <div class="tab-pane fade" id="pills-interactions" role="tabpanel">
-                         <div class="row">
-                            <div class="col-md-3">
-                                <div class="card p-3">
-                                     <label class="form-label fw-bold">Select Interaction Pair:</label>
-                                    <select class="form-select" id="interactionSelect" onchange="showInteraction(this.value)">
-                                        {''.join([f'<option value="{k}">{k}</option>' for k in all_interactions])}
-                                    </select>
-                                </div>
-                            </div>
-                            <div class="col-md-9">
-                                <div class="row">
-                                    <div class="col-lg-8">
-                                        <div class="card p-2">
-                                            {''.join([f'<div id="intchart_{k}" class="int-chart hidden">{plot}</div>' for k, plot in interaction_charts.items()])}
-                                        </div>
-                                    </div>
-                                    <div class="col-lg-4">
-                                         <div class="card p-3">
-                                            <h6 class="text-secondary">Relation Matrix (Target Mean)</h6>
-                                            <div style="overflow-x: auto;">
-                                                {''.join([f'<div id="inttable_{k}" class="int-table hidden">{tbl}</div>' for k, tbl in interaction_stats.items()])}
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
+                        <div class="col-md-8">
+                            <select class="form-select" onchange="showInteraction(this.value)" style="background-color: var(--select-bg); color: var(--select-color); border-color: var(--table-border-color);">
+                                {int_options}
+                            </select>
                         </div>
                     </div>
                 </div>
+                
+                <div id="interaction-details-container" class="mb-5">
+        """
+        
+        for i, pair_key in enumerate(all_interactions):
+            chart_html = interaction_charts.get(pair_key, "")
+            table_html = interaction_stats.get(pair_key, "")
+            is_hidden = 'hidden' if i > 0 else ''
+            
+            html_content += f"""
+                    <div id="intchart_{pair_key}" class="int-chart {is_hidden}">
+                        <div class="glass-card mb-4" style="border: var(--card-border); background: var(--card-bg);">
+                            <h4 class="text-center mb-0 p-2" style="color: var(--text-color); border-bottom: 1px solid var(--table-border-color);">{pair_key}</h4>
+                            <div class="p-3">
+                                {chart_html}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div id="inttable_{pair_key}" class="int-table {is_hidden}">
+                         <div class="glass-card mb-4" style="border: var(--card-border); background: var(--card-bg);">
+                            <div class="p-3">
+                                <h6 class="text-muted mb-3">Target Mean Matrix</h6>
+                                <div class="table-responsive">
+                                    {table_html}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+            """
+            
+        html_content += """
+                </div>
+                
+                <footer class="text-center text-muted mt-5 mb-3">
+                    <small>Generated by AdvancedCATDAP</small>
+                </footer>
             </div>
-
+            
             <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
             <script>
-                function toggleTheme() {{
+                function toggleTheme() {
                     document.body.classList.toggle('dark-mode');
                     const isDark = document.body.classList.contains('dark-mode');
                     
                     const textColor = isDark ? '#e0e0e0' : '#333';
-                    const update = {{
+                    const update = {
                         'font.color': textColor,
                         'paper_bgcolor': 'rgba(0,0,0,0)',
                         'plot_bgcolor': 'rgba(0,0,0,0)'
-                    }};
+                    };
                     
                     const graphs = document.querySelectorAll('.plotly-graph-div');
                     graphs.forEach(el => Plotly.relayout(el, update));
-                }}
+                }
 
                 // Feature Selection Logic
-                function showFeature(featName) {{
+                function showFeature(featName) {
                     // Hide all
                     document.querySelectorAll('.feature-chart').forEach(el => el.classList.add('hidden'));
                     document.querySelectorAll('.feature-table').forEach(el => el.classList.add('hidden'));
@@ -403,19 +505,19 @@ class ResultExporter:
                     if(table) table.classList.remove('hidden');
                     
                     // Trigger Plotly resize just in case
-                    if(chart) {{
+                    if(chart) {
                         const plotlyDiv = chart.querySelector('.plotly-graph-div');
                         if(plotlyDiv) Plotly.Plots.resize(plotlyDiv);
                         
                         // Ensure Theme is applied to newly shown chart
                         const isDark = document.body.classList.contains('dark-mode');
                         const textColor = isDark ? '#e0e0e0' : '#333';
-                        Plotly.relayout(plotlyDiv, {{'font.color': textColor}});
-                    }}
-                }}
+                        Plotly.relayout(plotlyDiv, {'font.color': textColor});
+                    }
+                }
 
                 // Interaction Logic
-                function showInteraction(pairKey) {{
+                function showInteraction(pairKey) {
                      document.querySelectorAll('.int-chart').forEach(el => el.classList.add('hidden'));
                      document.querySelectorAll('.int-table').forEach(el => el.classList.add('hidden'));
                      
@@ -425,32 +527,15 @@ class ResultExporter:
                      if(chart) chart.classList.remove('hidden');
                      if(table) table.classList.remove('hidden');
                      
-                     if(chart) {{
+                     if(chart) {
                         const plotlyDiv = chart.querySelector('.plotly-graph-div');
                         if(plotlyDiv) Plotly.Plots.resize(plotlyDiv);
                         
-                        // Ensure Theme is applied
                         const isDark = document.body.classList.contains('dark-mode');
                         const textColor = isDark ? '#e0e0e0' : '#333';
-                        Plotly.relayout(plotlyDiv, {{'font.color': textColor}});
-                    }}
-                }}
-
-                // Initialize
-                window.onload = function() {{
-                    const firstFeat = "{all_features[0] if all_features else ''}";
-                    if(firstFeat) {{
-                        document.getElementById('featureSelect').value = firstFeat;
-                        // Small delay to allow Plotly to render initial chart correctly
-                        setTimeout(() => showFeature(firstFeat), 100);
-                    }}
-                    
-                    const firstInt = "{all_interactions[0] if all_interactions else ''}";
-                    if(firstInt) {{
-                        document.getElementById('interactionSelect').value = firstInt;
-                        setTimeout(() => showInteraction(firstInt), 100);
-                    }}
-                }};
+                        Plotly.relayout(plotlyDiv, {'font.color': textColor});
+                     }
+                }
             </script>
         </body>
         </html>
