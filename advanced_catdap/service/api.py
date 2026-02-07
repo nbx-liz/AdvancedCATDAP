@@ -139,5 +139,8 @@ def get_job_status(job_id: str):
 
 @app.delete("/jobs/{job_id}")
 def cancel_job(job_id: str):
-    job_manager.cancel_job(job_id)
+    try:
+        job_manager.cancel_job(job_id)
+    except NotImplementedError as exc:
+        raise HTTPException(status_code=501, detail=str(exc))
     return {"status": "cancelled"}
