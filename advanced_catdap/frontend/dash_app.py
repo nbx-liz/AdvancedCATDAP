@@ -78,27 +78,32 @@ def apply_chart_style(fig):
 
 def create_sidebar_content():
     return html.Div([
-        # Header in Sidebar? No, Header is Global. This is controls.
-        html.H5("Controls", className="mb-3 text-info"),
-        
-        # File Upload
-        html.Label("Dataset", className="small text-muted mb-2"),
+        # Upload Area
         dcc.Upload(
             id='upload-data',
             children=html.Div([
-                html.I(className="bi bi-cloud-upload fs-2 mb-2"),
-                html.Div("Drag & Drop or Click")
-            ]),
+                html.Div("Drag and Drop or Click to Select File", className="text-info mb-2"),
+                html.Div("Supports: CSV, Parquet, Excel", className="small text-secondary")
+            ], className="upload-box"),
             multiple=False,
-            className="upload-box mb-3"
+            className="mb-4"
         ),
-        html.Div(id='upload-status', className="mb-3 small"),
         
-        # Dynamic Content (Dropdowns etc)
+        html.Div(id='upload-status', className="mb-3"),
+        
+        # Dynamic Content Area (Target/Task/Run)
         html.Div(id='sidebar-dynamic-content'),
         
-        # Export Area
-        html.Div(id='sidebar-export-area', className="mt-3")
+        # Expert Area (Always Visible for now to fix callback ID error)
+        html.Div([
+            html.Hr(className="border-secondary"),
+            html.H6("Export Report", className="text-info"),
+            html.Label("Export Filename", className="mt-2 text-secondary small"),
+            dbc.Input(id="report-filename-input", placeholder="Default: [Dataset]_[Date]", size="sm", className="mb-2"),
+            dbc.Button([
+                html.I(className="bi bi-download me-2"), "Download HTML Report"
+            ], id='btn-export-html', color="info", className="w-100 neon-button")
+        ], id='sidebar-export-area', className="d-grid gap-2 mt-4")
     ])
 
 def render_dashboard_tab(result, meta, theme=None): # theme arg kept for compatibility but unused
@@ -381,7 +386,12 @@ app.layout = dbc.Container([
     dbc.Row([
         # Left Sidebar (3/12)
         dbc.Col([
-            html.Div(create_sidebar_content(), className="glass-card sticky-sidebar")
+            html.Div(create_sidebar_content(), className="glass-card sticky-sidebar"),
+            # Placeholder for dynamic content or export area (if we want it sticky too, move inside)
+            # Actually, let's keep it simple. create_sidebar_content returns the structure.
+            # We need to ensure 'report-filename-input' is in the initial layout if possible, 
+            # OR we ensure the callback handles its absence (but State requires it presence).
+            # BEST FIX: Add it to the initial layout in create_sidebar_content or here hidden.
         ], width=12, md=3, className="mb-4"),
         
         # Right Main Content (9/12)

@@ -61,6 +61,7 @@ body {
 */
 
 /* 1. The Control (Closed Box) */
+/* 1. The Control (Closed Box) */
 .Select-control,
 .Select-control:hover,
 .is-focused:not(.is-open)>.Select-control {
@@ -70,6 +71,24 @@ body {
     /* Match dbc.Select border */
     color: #e0e0e0 !important;
     box-shadow: none !important;
+}
+
+/* Fix for when user says it returns to white: 
+   React-Select adds inline styles or specific generic classes. 
+   We must override the background of the inner value container too.
+*/
+.Select-value {
+    background-color: transparent !important;
+}
+
+/* Ensure the text inside is white */
+.Select-value-label {
+    color: #e0e0e0 !important;
+}
+
+/* Input box itself */
+.Select-input>input {
+    color: white !important;
 }
 
 /* 2. The Input/Placeholder Text */
