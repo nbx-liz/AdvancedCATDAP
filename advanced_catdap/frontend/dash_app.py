@@ -358,6 +358,7 @@ app.layout = dbc.Container([
     dcc.Store(id='theme-store', data='dark', storage_type='local'), # Force Dark
     dcc.Interval(id='job-poll-interval', interval=2000, disabled=True),
     dcc.Download(id="download-report"),
+    dcc.Download(id="download-html-report"),
     
     # 1. Header
     dbc.Row([
@@ -536,10 +537,17 @@ def poll_job(n, job_id):
 )
 def show_export_button(result):
     if not result: return ""
-    return dbc.Button([
-        html.I(className="bi bi-file-earmark-excel me-2"),
-        "Export Excel Report"
-    ], id='btn-export', color="success", className="w-100 neon-button-green")
+    return html.Div([
+        dbc.Button([
+            html.I(className="bi bi-file-earmark-excel me-2"),
+            "Export Excel Report"
+        ], id='btn-export', color="success", className="w-100 neon-button-green mb-2"),
+        
+        dbc.Button([
+            html.I(className="bi bi-filetype-html me-2"),
+            "Export HTML Report"
+        ], id='btn-export-html', color="info", className="w-100 neon-button")
+    ])
 
 @callback(
     Output("download-report", "data"),
@@ -548,11 +556,23 @@ def show_export_button(result):
     State("store-dataset-meta", "data"),
     prevent_initial_call=True
 )
-def download_report(n_clicks, result, meta):
+def download_excel_report(n_clicks, result, meta):
     if not n_clicks or not result: return dash.no_update
-    
     excel_io = ResultExporter.generate_excel_report(result, meta)
     return dcc.send_bytes(excel_io.getvalue(), "AdvancedCATDAP_Report.xlsx")
+
+@callback(
+    Output("download-html-report", "data"),
+    Input("btn-export-html", "n_clicks"),
+    State("store-analysis-result", "data"),
+    State("store-dataset-meta", "data"),
+    prevent_initial_call=True
+)
+def download_html_report(n_clicks, result, meta):
+    if not n_clicks or not result: return dash.no_update
+    
+    html_io = ResultExporter.generate_html_report(result, meta)
+    return dcc.send_bytes(html_io.getvalue(), "AdvancedCATDAP_Report.html")
 
 @callback(
     Output('page-content', 'children'),

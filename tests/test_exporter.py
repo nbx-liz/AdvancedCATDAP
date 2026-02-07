@@ -37,3 +37,25 @@ def test_excel_export_minimal():
         
         df_fi = pd.read_excel(xls, 'Feature Importances')
         assert len(df_fi) == 2
+
+def test_html_export_minimal():
+    result = {
+        'mode': 'CLASSIFICATION',
+        'baseline_score': 500.0,
+        'feature_importances': [
+            {'Feature': 'ColA', 'Delta_Score': 100.0, 'Score': 400.0},
+            {'Feature': 'ColB', 'Delta_Score': 50.0, 'Score': 450.0}
+        ],
+        'interaction_importances': [],
+        'feature_details': {}
+    }
+    meta = {'dataset_id': 'test_data', 'n_rows': 100, 'n_columns': 5}
+    
+    html_io = ResultExporter.generate_html_report(result, meta)
+    assert isinstance(html_io, io.BytesIO)
+    
+    content = html_io.getvalue().decode('utf-8')
+    assert "<!DOCTYPE html>" in content
+    assert "Analysis Report" in content
+    assert "ColA" in content
+    assert "plotly" in content # Check for Plotly embed
