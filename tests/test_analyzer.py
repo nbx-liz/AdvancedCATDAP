@@ -124,3 +124,41 @@ def test_analyzer_interaction_with_categorical():
         assert len(result.interaction_importances) == 1
         assert "cat1|cat2" in result.interaction_details
 
+
+def test_analyzer_rejects_id_like_string_target():
+    service = AnalyzerService()
+    df = pd.DataFrame(
+        {
+            "CustomerID": [f"CUST_{i:06d}" for i in range(150)],
+            "feature_num": list(range(150)),
+        }
+    )
+    params = AnalysisParams(target_col="CustomerID")
+
+    with pytest.raises(ValueError, match="appears ID-like"):
+        service.run_analysis(df, params)
+
+
+def test_analyzer_allows_non_id_like_string_target():
+    with patch("advanced_catdap.service.analyzer.AdvancedCATDAP") as mock_core_cls:
+        mock_instance = MagicMock()
+        mock_core_cls.return_value = mock_instance
+        mock_instance.mode = "classification"
+        mock_instance.baseline_score = 10.0
+        mock_instance.transform_rules_ = {}
+        mock_instance.feature_importances_ = pd.DataFrame(columns=["Feature", "Score", "Delta_Score", "Actual_Bins", "Method"])
+        mock_instance.interaction_importances_ = None
+        mock_instance.feature_details_ = None
+
+        service = AnalyzerService()
+        df = pd.DataFrame(
+            {
+                "target": ["Yes", "No"] * 80,
+                "feature_num": list(range(160)),
+            }
+        )
+        params = AnalysisParams(target_col="target")
+
+        result = service.run_analysis(df, params)
+        assert result.mode == "classification"
+

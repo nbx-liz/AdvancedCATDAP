@@ -8,6 +8,7 @@ import dash_bootstrap_components as dbc
 import plotly.express as px
 import plotly.graph_objects as go
 import pandas as pd
+import numpy as np
 import base64
 import io
 import os
@@ -130,17 +131,35 @@ def render_dashboard_tab(result, meta, params=None, theme=None): # theme arg kep
         return dbc.Alert([html.I(className="bi bi-info-circle me-2"), "Please upload data and run analysis."], color="dark", className="glass-card border-info")
     
     # KPI Calculation
-    baseline = result.get('baseline_score', 0)
+    baseline_raw = result.get('baseline_score', 0)
+    baseline_num = pd.to_numeric(pd.Series([baseline_raw]), errors="coerce").iloc[0]
+    baseline = (
+        float(baseline_num)
+        if pd.notna(baseline_num) and np.isfinite(baseline_num)
+        else None
+    )
     fi_data = result.get('feature_importances', [])
     df_fi_norm = ResultExporter.normalize_feature_importances(fi_data)
     best_aic = baseline
     if not df_fi_norm.empty and "Score" in df_fi_norm.columns:
         score_series = pd.to_numeric(df_fi_norm["Score"], errors="coerce").dropna()
         if not score_series.empty:
-            best_aic = float(score_series.min())
-    
-    delta = baseline - best_aic # Improvement
-    pct_change = ((best_aic - baseline) / baseline * 100.0) if baseline else 0.0
+            min_score = float(score_series.min())
+            best_aic = min_score if np.isfinite(min_score) else best_aic
+
+    if baseline is not None and best_aic is not None and np.isfinite(best_aic):
+        delta = baseline - best_aic  # Improvement
+        pct_change = ((best_aic - baseline) / baseline * 100.0) if baseline else None
+    else:
+        delta = None
+        pct_change = None
+
+    baseline_text = f"{baseline:,.0f}" if baseline is not None else "N/A"
+    best_aic_text = f"{best_aic:,.0f}" if best_aic is not None else "N/A"
+    if delta is not None and pct_change is not None and np.isfinite(delta) and np.isfinite(pct_change):
+        delta_text = f"Delta {delta:,.0f} ({pct_change:.1f}%)"
+    else:
+        delta_text = "Delta N/A"
     n_selected = len(fi_data)
     n_total = max((meta['n_columns'] - 1), 0) if meta else 0
     selected_summary = f"{n_selected} / {n_total} features" if n_total else f"{n_selected} features"
@@ -158,14 +177,14 @@ def render_dashboard_tab(result, meta, params=None, theme=None): # theme arg kep
                 html.Div("AIC Comparison", className="kpi-label"),
                 html.H2(
                     [
-                        f"{baseline:,.0f} ",
+                        f"{baseline_text} ",
                         html.Span("->", className="mx-1 text-secondary"),
-                        f"{best_aic:,.0f}",
+                        f"{best_aic_text}",
                     ],
                     className="kpi-main-value mb-1"
                 ),
                 html.Div(
-                    [f"Delta {delta:,.0f} ({pct_change:.1f}%)"],
+                    [delta_text],
                     className="kpi-delta fw-semibold"
                 ),
                 html.Small("AIC is better when lower.", className="kpi-note"),

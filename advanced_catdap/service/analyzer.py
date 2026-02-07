@@ -12,6 +12,28 @@ class AnalyzerService:
     def __init__(self):
         self.logger = logging.getLogger(__name__)
 
+    def _validate_target_column(self, dataset: pd.DataFrame, params: AnalysisParams) -> None:
+        if params.target_col not in dataset.columns:
+            raise ValueError(f"Target column '{params.target_col}' not found in dataset.")
+
+        target = dataset[params.target_col]
+        non_null = target.dropna()
+        n_non_null = int(non_null.shape[0])
+        if n_non_null == 0:
+            return
+
+        if pd.api.types.is_numeric_dtype(non_null):
+            return
+
+        n_unique = int(non_null.nunique())
+        unique_ratio = n_unique / n_non_null
+        if unique_ratio >= 0.95 and n_unique >= 100:
+            raise ValueError(
+                f"Target column '{params.target_col}' appears ID-like "
+                f"(unique_ratio={unique_ratio:.2f}). Please choose an outcome variable "
+                "(e.g., Churn or Target_Spend)."
+            )
+
     def run_analysis(
         self, 
         dataset: pd.DataFrame, 
@@ -22,6 +44,7 @@ class AnalyzerService:
         Run the AdvancedCATDAP analysis and return structured results.
         """
         self.logger.info(f"Starting analysis for target: {params.target_col}")
+        self._validate_target_column(dataset, params)
         
         # Initialize Core model
         model = AdvancedCATDAP(
