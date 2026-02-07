@@ -583,8 +583,13 @@ def download_html_report(n_clicks, result, meta, custom_filename):
         
         filename = f"{original_name}_Report_{timestamp}.html"
     
-    html_io = ResultExporter.generate_html_report(result, meta)
-    return dcc.send_bytes(html_io.getvalue(), filename)
+    try:
+        html_io = ResultExporter.generate_html_report(result, meta)
+        return dcc.send_bytes(html_io.getvalue(), filename)
+    except Exception as e:
+        print(f"[ERROR] Export failed: {e}")
+        # In a real app, we might want to show a notification to the user
+        return dash.no_update
 
 # Removed Simulator Callbacks
 

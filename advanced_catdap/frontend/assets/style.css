@@ -55,26 +55,38 @@ body {
     letter-spacing: 1px;
 }
 
-/* Dropdown (React-Select) Overrides for Dark Theme */
+/* 
+   React-Select Overrides for "Select Feature" Consistency 
+   Targeting Dash Dropdown internal classes structure.
+*/
+
+/* 1. The Control (Closed Box) */
 .Select-control,
-.Select-multi-value-wrapper,
-.Select-placeholder,
-.Select-input {
+.Select-control:hover,
+.is-focused:not(.is-open)>.Select-control {
     background-color: #222 !important;
-    border-color: #444 !important;
+    /* Match dbc.Select bg */
+    border: 1px solid #444 !important;
+    /* Match dbc.Select border */
+    color: #e0e0e0 !important;
+    box-shadow: none !important;
+}
+
+/* 2. The Input/Placeholder Text */
+.Select-value-label,
+.Select-placeholder,
+.Select-input>input {
     color: #e0e0e0 !important;
 }
 
-.Select-value-label {
-    color: #e0e0e0 !important;
-}
-
+/* 3. The Menu (Dropdown List) */
 .Select-menu-outer {
     background-color: #222 !important;
     border: 1px solid #444 !important;
-    color: #e0e0e0 !important;
+    margin-top: 0px !important;
 }
 
+/* 4. Options */
 .Select-option {
     background-color: #222 !important;
     color: #e0e0e0 !important;
@@ -83,35 +95,27 @@ body {
 .Select-option.is-focused,
 .Select-option:hover {
     background-color: #444 !important;
+    /* Hover state */
     color: #fff !important;
 }
 
-/* React-Select v2+ (Dash 2.0+) uses different class prefixes usually, but sometimes falls back to these if standard theme is used.
-   However, Dash often uses Emotion/CSS-in-JS.
-   Let's target based on common Dash/React-Select attributes if possible, or just be very generic.
-*/
+/* 5. Remove the generic "control" target that was causing conflicts */
+/* div[class*="control"] { ... } REMOVED */
 
-/* Target any div that looks like a control */
-div[class*="control"] {
-    background-color: #222 !important;
-    color: #e0e0e0 !important;
-    border-color: #444 !important;
-}
-
-/* Target menu */
-div[class*="menu"] {
-    background-color: #222 !important;
-    color: #e0e0e0 !important;
-}
-
-/* Target option */
-div[class*="option"] {
-    background-color: #222 !important;
-    color: #e0e0e0 !important;
-}
-
-div[class*="option"]:hover {
+/* 6. Fix for Multi-Value (if used) */
+.Select-value {
     background-color: #444 !important;
+    border-color: #555 !important;
+    color: #fff !important;
+}
+
+.Select-value-icon {
+    border-right: 1px solid #555 !important;
+}
+
+.Select-value-icon:hover {
+    background-color: #666 !important;
+    color: #fff !important;
 }
 
 /* Target specific Dash Dropdown Container to be safe */
