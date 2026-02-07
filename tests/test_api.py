@@ -4,6 +4,7 @@ import pytest
 import os
 import shutil
 
+from advanced_catdap.service import api as api_module
 from advanced_catdap.service.api import app
 from advanced_catdap.service.schema import AnalysisParams
 
@@ -84,3 +85,25 @@ def test_cancel_job_returns_501_when_not_supported():
         res = client.delete("/jobs/abc123")
     assert res.status_code == 501
     assert "not implemented" in res.json()["detail"]
+def test_resolve_cors_settings_defaults(monkeypatch):
+    monkeypatch.delenv("CATDAP_CORS_ALLOW_ORIGINS", raising=False)
+    monkeypatch.delenv("CATDAP_CORS_ALLOW_CREDENTIALS", raising=False)
+
+    settings = api_module.resolve_cors_settings()
+    assert settings["allow_origins"] == [
+        "http://127.0.0.1:8050",
+        "http://localhost:8050",
+    ]
+    assert settings["allow_credentials"] is False
+
+
+def test_resolve_cors_settings_from_env(monkeypatch):
+    monkeypatch.setenv(
+        "CATDAP_CORS_ALLOW_ORIGINS",
+        "https://example.com, https://sub.example.com ",
+    )
+    monkeypatch.setenv("CATDAP_CORS_ALLOW_CREDENTIALS", "true")
+
+    settings = api_module.resolve_cors_settings()
+    assert settings["allow_origins"] == ["https://example.com", "https://sub.example.com"]
+    assert settings["allow_credentials"] is True
