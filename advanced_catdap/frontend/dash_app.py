@@ -381,11 +381,10 @@ app.layout = dbc.Container([
             html.Div(id='global-status-message'),
             
             # Use 'main-tabs' ID as requested
-            dbc.Tabs([
-                dbc.Tab(label="Dashboard", tab_id="tab-dashboard", label_class_name="text-uppercase"),
-                dbc.Tab(label="Deep Dive", tab_id="tab-deepdive", label_class_name="text-uppercase"),
-                dbc.Tab(label="Simulator", tab_id="tab-simulator", disabled=True, label_class_name="text-uppercase text-muted"),
-            ], id="main-tabs", active_tab="tab-dashboard", className="mb-3"),
+            dcc.Tabs(id="main-tabs", value="tab-dashboard", children=[
+                dcc.Tab(label="Dashboard", value="tab-dashboard", className="custom-tab", selected_className="custom-tab--selected"),
+                dcc.Tab(label="Deep Dive", value="tab-deepdive", className="custom-tab", selected_className="custom-tab--selected"),
+            ], className="mb-3"),
             
             html.Div(id='page-content')
             
@@ -555,8 +554,23 @@ def show_export_button(result):
 def download_html_report(n_clicks, result, meta):
     if not n_clicks or not result: return dash.no_update
     
+    # Generate filename with timestamp
+    import datetime
+    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M")
+    original_name = "AdvancedCATDAP"
+    if meta and 'dataset_id' in meta:
+        # cleanup filename
+        import os
+        base = os.path.basename(meta['dataset_id'])
+        original_name, _ = os.path.splitext(base)
+    
+    filename = f"{original_name}_Report_{timestamp}.html"
+    
     html_io = ResultExporter.generate_html_report(result, meta)
-    return dcc.send_bytes(html_io.getvalue(), "AdvancedCATDAP_Report.html")
+    return dcc.send_bytes(html_io.getvalue(), filename)
+
+# Removed Simulator Callbacks
+
 
 @callback(
     Output('page-content', 'children'),

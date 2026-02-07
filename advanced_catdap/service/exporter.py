@@ -175,6 +175,8 @@ class ResultExporter:
                     --card-border: none;
                     --header-bg: linear-gradient(135deg, #0d6efd 0%, #0dcaf0 100%);
                     --table-color: #333;
+                    --table-bg: #fff;
+                    --table-border-color: #dee2e6;
                 }}
                 
                 body.dark-mode {{
@@ -184,16 +186,26 @@ class ResultExporter:
                     --card-border: 1px solid #333;
                     --header-bg: linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%);
                     --table-color: #e0e0e0;
+                    --table-bg: #2c2c2c;
+                    --table-border-color: #444;
                 }}
                 
-                body {{ background-color: var(--bg-color); color: var(--text-color); transition: background-color 0.3s, color 0.3s; }}
+                body {{ 
+                    background-color: var(--bg-color); 
+                    color: var(--text-color); 
+                    transition: background-color 0.3s, color 0.3s; 
+                    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                }}
+                
                 .card {{ background-color: var(--card-bg); color: var(--text-color); margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); border: var(--card-border); }}
                 .header {{ background: var(--header-bg); color: white; padding: 20px; margin-bottom: 30px; border-radius: 0 0 20px 20px; position: relative; }}
                 .nav-pills .nav-link.active {{ background-color: #0d6efd; }}
                 .plot-container {{ width: 100%; }}
                 .hidden {{ display: none; }}
                 
-                table {{ color: var(--table-color) !important; }}
+                /* Table Styling */
+                table {{ color: var(--table-color) !important; background-color: var(--table-bg) !important; }}
+                .table {{ --bs-table-bg: var(--table-bg); --bs-table-color: var(--table-color); --bs-table-border-color: var(--table-border-color); }}
                 .table-hover tbody tr:hover td {{ color: var(--text-color); background-color: rgba(0,0,0,0.05); }}
                 body.dark-mode .table-hover tbody tr:hover td {{ background-color: rgba(255,255,255,0.1); }}
                 
@@ -400,13 +412,14 @@ class ResultExporter:
                     const firstFeat = "{all_features[0] if all_features else ''}";
                     if(firstFeat) {{
                         document.getElementById('featureSelect').value = firstFeat;
-                        showFeature(firstFeat);
+                        // Small delay to allow Plotly to render initial chart correctly
+                        setTimeout(() => showFeature(firstFeat), 100);
                     }}
                     
                     const firstInt = "{all_interactions[0] if all_interactions else ''}";
                     if(firstInt) {{
                         document.getElementById('interactionSelect').value = firstInt;
-                        showInteraction(firstInt);
+                        setTimeout(() => showInteraction(firstInt), 100);
                     }}
                 }};
             </script>
