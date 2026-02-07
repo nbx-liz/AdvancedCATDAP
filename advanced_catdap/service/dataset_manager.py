@@ -18,7 +18,7 @@ class DatasetManager:
     def _get_connection(self):
         return duckdb.connect(database=':memory:')
 
-    def register_dataset(self, file_path: Union[str, Path], dataset_id: Optional[str] = None) -> DatasetMetadata:
+    def register_dataset(self, file_path: Union[str, Path], dataset_id: Optional[str] = None, original_filename: Optional[str] = None) -> DatasetMetadata:
         """
         Register a dataset (CSV/Parquet) into the managed storage (Parquet).
         Returns metadata.
@@ -75,7 +75,7 @@ class DatasetManager:
 
             metadata = DatasetMetadata(
                 dataset_id=dataset_id,
-                filename=file_path.name,
+                filename=original_filename or file_path.name,
                 file_path=str(target_path.absolute()),
                 n_rows=n_rows,
                 n_columns=len(col_names),

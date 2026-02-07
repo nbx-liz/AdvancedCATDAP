@@ -1,0 +1,499 @@
+/* Hybrid Modern Dark Theme - Assets */
+
+:root {
+    --neon-cyan: #00f3ff;
+    --neon-magenta: #bc13fe;
+    --neon-green: #0aff0a;
+    --accent-primary: #00f3ff;
+    --surface-border: rgba(255, 255, 255, 0.14);
+    --surface-border-strong: rgba(0, 243, 255, 0.22);
+    --glass-bg: rgba(20, 20, 20, 0.6);
+    --glass-border: 1px solid rgba(255, 255, 255, 0.1);
+    --text-primary: #e0e0e0;
+    --text-secondary: #aaaaaa;
+}
+
+body {
+    /* Background handled by Cyborg theme, but we can add a subtle gradient if needed */
+    background: radial-gradient(circle at 10% 20%, rgb(20, 20, 20) 0%, rgb(0, 0, 0) 90%);
+    min-height: 100vh;
+    font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+}
+
+/* Glassmorphism Card */
+.glass-card {
+    background: var(--glass-bg);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: var(--glass-border);
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+    border-radius: 10px;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+}
+
+/* Sticky Sidebar (for Column 3) */
+.sticky-sidebar {
+    position: sticky;
+    top: 1rem;
+    height: calc(100vh - 2rem);
+    overflow-y: auto;
+    z-index: 1000;
+}
+
+/* KPI Cards */
+.kpi-value {
+    font-size: 2rem;
+    font-weight: 700;
+    background: -webkit-linear-gradient(45deg, var(--neon-cyan), #ffffff);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.kpi-label {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+/* 
+   React-Select Overrides for "Select Feature" Consistency 
+   Targeting Dash Dropdown internal classes structure.
+*/
+
+/* 1. The Control (Closed Box) */
+/* 1. The Control (Closed Box) */
+.Select-control,
+.Select-control:hover,
+.is-focused:not(.is-open)>.Select-control {
+    background-color: #222 !important;
+    /* Match dbc.Select bg */
+    border: 1px solid #444 !important;
+    /* Match dbc.Select border */
+    color: #e0e0e0 !important;
+    box-shadow: none !important;
+}
+
+/* Fix for when user says it returns to white: 
+   React-Select adds inline styles or specific generic classes. 
+   We must override the background of the inner value container too.
+*/
+.Select-value {
+    background-color: transparent !important;
+}
+
+/* Ensure the text inside is white */
+.Select-value-label {
+    color: #e0e0e0 !important;
+}
+
+/* Input box itself */
+.Select-input>input {
+    color: white !important;
+}
+
+/* 2. The Input/Placeholder Text */
+.Select-value-label,
+.Select-placeholder,
+.Select-input>input {
+    color: #e0e0e0 !important;
+}
+
+/* 3. The Menu (Dropdown List) */
+.Select-menu-outer {
+    background-color: #222 !important;
+    border: 1px solid #444 !important;
+    margin-top: 0px !important;
+}
+
+/* 4. Options */
+.Select-option {
+    background-color: #222 !important;
+    color: #e0e0e0 !important;
+}
+
+.Select-option.is-focused,
+.Select-option:hover {
+    background-color: #444 !important;
+    /* Hover state */
+    color: #fff !important;
+}
+
+/* 5. Remove the generic "control" target that was causing conflicts */
+/* div[class*="control"] { ... } REMOVED */
+
+/* 6. Fix for Multi-Value (if used) */
+.Select-value {
+    background-color: #444 !important;
+    border-color: #555 !important;
+    color: #fff !important;
+}
+
+.Select-value-icon {
+    border-right: 1px solid #555 !important;
+}
+
+.Select-value-icon:hover {
+    background-color: #666 !important;
+    color: #fff !important;
+}
+
+/* Target specific Dash Dropdown Container to be safe */
+.dash-dropdown .Select-control {
+    background-color: #222 !important;
+}
+
+.Select-placeholder {
+    color: #888 !important;
+}
+
+.Select-arrow-zone {
+    color: white !important;
+}
+
+/* Upload Component Style */
+.upload-box {
+    border: 2px dashed rgba(255, 255, 255, 0.3);
+    border-radius: 5px;
+    text-align: center;
+    padding: 20px;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.upload-box:hover {
+    border-color: var(--neon-cyan);
+    background-color: rgba(0, 243, 255, 0.05);
+}
+
+/* Tabs */
+.nav-tabs .nav-link {
+    color: var(--text-secondary);
+    border: none;
+    border-bottom: 2px solid transparent;
+}
+
+.nav-tabs .nav-link.active {
+    background-color: transparent;
+    border: none;
+    border-bottom: 2px solid var(--neon-magenta);
+    color: white;
+    font-weight: bold;
+}
+
+.nav-tabs {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    margin-bottom: 1rem;
+}
+
+/* Scrollbar styling for Webkit */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: #1a1a1a;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #444;
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #666;
+}
+
+/* Fix Dropdown Overflow/Z-Index Issues */
+.Select-menu-outer {
+    z-index: 9999 !important;
+    position: absolute !important;
+}
+
+.Select-menu {
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.glass-card {
+    overflow: visible !important;
+    /* Ensure dropdowns can spill out */
+}
+
+/* =========================================
+   High Contrast & Visibility Improvements
+   ========================================= */
+
+/* Brighter secondary text */
+.text-secondary {
+    color: #c0c0c0 !important;
+}
+
+/* Form Inputs & Selects */
+input,
+select,
+textarea,
+.form-control,
+.form-select {
+    color: #ffffff !important;
+    background-color: rgba(40, 40, 50, 0.8) !important;
+    border-color: rgba(255, 255, 255, 0.2) !important;
+}
+
+input:focus,
+select:focus,
+textarea:focus,
+.form-control:focus,
+.form-select:focus {
+    color: #ffffff !important;
+    background-color: rgba(60, 60, 70, 0.9) !important;
+    border-color: var(--neon-cyan) !important;
+    box-shadow: 0 0 10px rgba(0, 243, 255, 0.3) !important;
+}
+
+input::placeholder {
+    color: #aaaaaa !important;
+}
+
+/* Disable browser default appearance for selects to ensure custom style */
+select {
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+    background-repeat: no-repeat;
+    background-position: right 1rem center;
+    background-size: 1em;
+    padding-right: 2.5rem;
+}
+
+option {
+    background-color: #222;
+    /* Ensure options have dark background when expanded */
+    color: #fff;
+}
+
+/* Force Input Colors */
+input.Select-input,
+input {
+    background-color: transparent !important;
+    color: white !important;
+}
+
+.Select-control input {
+    color: white !important;
+    box-shadow: none !important;
+    caret-color: white !important;
+}
+
+/* Specific target for generic html inputs */
+#report-filename-input {
+    background-color: #222 !important;
+    color: white !important;
+    border: 1px solid #444;
+}
+
+#report-filename-input::placeholder {
+    color: #888 !important;
+}
+
+/* Sliders */
+.rc-slider-mark-text {
+    color: #b0b0b0 !important;
+}
+
+.rc-slider-mark-text-active {
+    color: var(--neon-cyan) !important;
+}
+
+/* Accordion */
+.accordion-button {
+    color: #ffffff !important;
+    background-color: rgba(255, 255, 255, 0.05) !important;
+}
+
+.accordion-button:not(.collapsed) {
+    color: var(--neon-cyan) !important;
+    background-color: rgba(0, 243, 255, 0.1) !important;
+    box-shadow: none !important;
+}
+
+.accordion-item {
+    background-color: transparent !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+
+.accordion-body {
+    color: #e0e0e0;
+}
+
+/* Custom Table Styling */
+.table-glass {
+    --bs-table-bg: rgba(30, 30, 40, 0.4);
+    --bs-table-color: #e0e0e0;
+    --bs-table-border-color: rgba(255, 255, 255, 0.1);
+    color: #e0e0e0;
+    border-collapse: separate;
+    border-spacing: 0;
+    width: 100%;
+    margin-bottom: 1rem;
+}
+
+.table-glass th {
+    background-color: rgba(0, 243, 255, 0.1) !important;
+    color: var(--neon-cyan) !important;
+    font-weight: 600;
+    border-bottom: 1px solid var(--neon-cyan);
+    text-align: center;
+    vertical-align: middle;
+}
+
+.table-glass td {
+    vertical-align: middle;
+}
+
+.table-glass.table-hover tbody tr:hover td {
+    background-color: rgba(255, 255, 255, 0.1);
+    color: white;
+}
+
+/* Neon Buttons */
+.neon-button {
+    background-color: transparent !important;
+    border: 2px solid var(--neon-cyan) !important;
+    color: var(--neon-cyan) !important;
+    font-weight: 600 !important;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    transition: all 0.3s ease !important;
+    box-shadow: 0 0 5px rgba(0, 243, 255, 0.2);
+}
+
+.neon-button:hover {
+    background-color: var(--neon-cyan) !important;
+    color: #000 !important;
+    box-shadow: 0 0 20px rgba(0, 243, 255, 0.5);
+}
+
+.neon-button-green {
+    background-color: transparent !important;
+    border: 2px solid var(--neon-green) !important;
+    color: var(--neon-green) !important;
+    font-weight: 600 !important;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    transition: all 0.3s ease !important;
+    box-shadow: 0 0 5px rgba(10, 255, 10, 0.2);
+}
+
+.neon-button-green:hover {
+    background-color: var(--neon-green) !important;
+    color: #000 !important;
+    box-shadow: 0 0 20px rgba(10, 255, 10, 0.5);
+}
+
+/* Dashboard KPI typography hierarchy */
+.dashboard-kpi-card {
+    padding: 0.95rem 1.05rem;
+    min-height: 144px;
+}
+
+.dashboard-kpi-card .kpi-label {
+    font-size: 0.74rem;
+    letter-spacing: 0.07em;
+    margin-bottom: 0.35rem;
+    line-height: 1.2;
+}
+
+.dashboard-kpi-card .kpi-value {
+    font-size: 1.42rem;
+    margin-bottom: 0.18rem;
+    line-height: 1.22;
+}
+
+.kpi-main-value {
+    color: var(--text-primary);
+    font-size: 1.38rem;
+    font-weight: 700;
+    line-height: 1.22;
+    letter-spacing: 0.01em;
+}
+
+.kpi-delta {
+    color: var(--accent-primary);
+    font-size: 0.93rem;
+    margin-bottom: 0.18rem;
+    line-height: 1.2;
+}
+
+.kpi-note {
+    color: var(--text-secondary);
+    font-size: 0.74rem;
+    letter-spacing: 0.01em;
+    line-height: 1.2;
+}
+
+.kpi-meta {
+    color: var(--text-secondary);
+    font-size: 0.78rem;
+    line-height: 1.25;
+}
+
+/* Sidebar spacing rhythm */
+.sidebar-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 0.8rem;
+}
+
+.sidebar-settings-panel .border-secondary {
+    margin-top: 0.35rem;
+    margin-bottom: 0.85rem;
+}
+
+.sidebar-settings-panel h6,
+.sidebar-export-area h6 {
+    margin-bottom: 0.55rem;
+}
+
+.sidebar-settings-panel label,
+.sidebar-export-area label {
+    margin-bottom: 0.35rem;
+}
+
+.sidebar-export-area {
+    display: grid;
+    gap: 0.6rem;
+}
+
+/* Uploaded file status: toned down and aligned to accent rule */
+.upload-status-alert {
+    background: rgba(0, 243, 255, 0.08) !important;
+    border: 1px solid rgba(0, 243, 255, 0.28) !important;
+    color: var(--text-primary) !important;
+    border-radius: 8px;
+}
+
+/* Section structure for consistent panel hierarchy */
+.section-card {
+    border: 1px solid var(--surface-border);
+}
+
+.section-title {
+    color: var(--text-primary);
+    font-size: 1.15rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    border-left: 3px solid var(--accent-primary);
+    padding-left: 0.6rem;
+}
+
+.feature-detail-panel {
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 10px;
+    padding: 0.8rem;
+}
