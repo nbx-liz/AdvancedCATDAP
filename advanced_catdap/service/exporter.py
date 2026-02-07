@@ -153,7 +153,6 @@ class ResultExporter:
                 interaction_charts[pair_key] = pio.to_html(fig_int, full_html=False, include_plotlyjs=False)
                 
                 # Table for Interaction (Target Mean Matrix) or similar summary
-                # Flatten matrix for table representation or keep as wide format?
                 # Let's show as a wide table to mimic the heatmap
                 df_int_table = pd.DataFrame(det['means'], index=det['bin_labels_1'], columns=det['bin_labels_2'])
                 interaction_stats[pair_key] = df_int_table.to_html(classes="table table-sm table-bordered table-hover", float_format="%.4f")
@@ -169,6 +168,7 @@ class ResultExporter:
             <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
             <style>
                 :root {{
+                    /* Light Mode (Default) */
                     --bg-color: #f8f9fa;
                     --text-color: #333;
                     --card-bg: #fff;
@@ -177,17 +177,24 @@ class ResultExporter:
                     --table-color: #333;
                     --table-bg: #fff;
                     --table-border-color: #dee2e6;
+                    --table-head-bg: #e9ecef;
+                    --select-bg: #fff;
+                    --select-color: #333;
                 }}
                 
                 body.dark-mode {{
-                    --bg-color: #121212;
+                    /* GUI-Like Dark Mode (Cyborg/Hybrid) */
+                    --bg-color: #060606;
                     --text-color: #e0e0e0;
-                    --card-bg: #1e1e1e;
+                    --card-bg: #111;
                     --card-border: 1px solid #333;
                     --header-bg: linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%);
                     --table-color: #e0e0e0;
-                    --table-bg: #2c2c2c;
+                    --table-bg: #1a1a1a;
                     --table-border-color: #444;
+                    --table-head-bg: #2c2c2c;
+                    --select-bg: #1a1a1a;
+                    --select-color: #e0e0e0;
                 }}
                 
                 body {{ 
@@ -206,13 +213,14 @@ class ResultExporter:
                 /* Table Styling */
                 table {{ color: var(--table-color) !important; background-color: var(--table-bg) !important; }}
                 .table {{ --bs-table-bg: var(--table-bg); --bs-table-color: var(--table-color); --bs-table-border-color: var(--table-border-color); }}
+                .table thead th {{ background-color: var(--table-head-bg); color: var(--text-color); border-bottom: 2px solid var(--table-border-color); }}
                 .table-hover tbody tr:hover td {{ color: var(--text-color); background-color: rgba(0,0,0,0.05); }}
                 body.dark-mode .table-hover tbody tr:hover td {{ background-color: rgba(255,255,255,0.1); }}
                 
                 /* Select High Contrast */
                 select.form-select {{
-                    background-color: var(--card-bg);
-                    color: var(--text-color);
+                    background-color: var(--select-bg);
+                    color: var(--select-color);
                     border-color: var(--text-color);
                 }}
                 
@@ -231,8 +239,8 @@ class ResultExporter:
         </head>
         <body>
             <div class="header text-center">
-                <h1>Analysis Report</h1>
-                <p>Dataset ID: {meta.get('dataset_id', 'N/A') if meta else 'N/A'} | Target: {meta.get('target', 'N/A')}</p>
+                <h1>AdvancedCATDAP Report</h1>
+                <p>Dataset: {meta.get('dataset_id', 'N/A') if meta else 'N/A'} | Target: {meta.get('target', 'N/A')}</p>
                 <button id="theme-toggle" onclick="toggleTheme()">
                     <i class="bi bi-moon-stars-fill"></i> Toggle Theme
                 </button>

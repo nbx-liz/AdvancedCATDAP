@@ -35,7 +35,7 @@ def test_html_export_interactive():
     
     content = html_io.getvalue().decode('utf-8')
     assert "<!DOCTYPE html>" in content
-    assert "Analysis Report" in content
+    assert "AdvancedCATDAP Report" in content
     assert "ColA" in content
     assert "plotly" in content 
     assert "function showFeature(featName)" in content 

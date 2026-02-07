@@ -230,8 +230,13 @@ def render_deepdive_tab(result, selected_mode, selected_feature, theme, meta=Non
             delta_col = col_map.get('delta_score', 'Delta_Score')
             if feat_col in df_fi.columns and delta_col in df_fi.columns:
                 features_to_show = df_fi.nlargest(5, delta_col)[feat_col].tolist()
-    elif selected_feature:
-        features_to_show = [selected_feature]
+    else:
+        # Select Mode
+        if selected_feature:
+            features_to_show = [selected_feature]
+        elif dropdown_features:
+            # Fallback to first feature if None selected
+            features_to_show = [dropdown_features[0]]
         
     for feat in features_to_show:
         detail = feature_details.get(feat, {})
@@ -381,10 +386,10 @@ app.layout = dbc.Container([
             html.Div(id='global-status-message'),
             
             # Use 'main-tabs' ID as requested
-            dcc.Tabs(id="main-tabs", value="tab-dashboard", children=[
-                dcc.Tab(label="Dashboard", value="tab-dashboard", className="custom-tab", selected_className="custom-tab--selected"),
-                dcc.Tab(label="Deep Dive", value="tab-deepdive", className="custom-tab", selected_className="custom-tab--selected"),
-            ], className="mb-3"),
+            dbc.Tabs([
+                dbc.Tab(label="Dashboard", tab_id="tab-dashboard", label_class_name="text-uppercase"),
+                dbc.Tab(label="Deep Dive", tab_id="tab-deepdive", label_class_name="text-uppercase"),
+            ], id="main-tabs", active_tab="tab-dashboard", className="mb-3"),
             
             html.Div(id='page-content')
             
