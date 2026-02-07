@@ -75,3 +75,12 @@ WebGUI本体は安定して動作していますが、輸出用のHTMLレポー�
 
 ---
 *最終更新日: 2026-02-07*
+
+---
+
+## Test Automation Update (February 2026)
+- Migrated manual HTML report script checks into `tests/test_report_manual_migration.py`.
+- Converted manual SQLite lifecycle verification into `tests/test_sqlite_integration.py`.
+- Added `pytest` marker config in `pyproject.toml`:
+  - `integration` marker for DB/worker-based slower tests.
+  - default test run excludes integration for stability/speed.

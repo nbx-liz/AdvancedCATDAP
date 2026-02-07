@@ -49,3 +49,9 @@ dev = [
     "pytest>=9.0.2",
     "pytest-cov>=7.0.0",
 ]
+
+[tool.pytest.ini_options]
+addopts = "-m \"not integration\""
+markers = [
+    "integration: tests requiring local DB/worker and slower I/O",
+]

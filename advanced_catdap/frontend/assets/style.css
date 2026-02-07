@@ -4,6 +4,9 @@
     --neon-cyan: #00f3ff;
     --neon-magenta: #bc13fe;
     --neon-green: #0aff0a;
+    --accent-primary: #00f3ff;
+    --surface-border: rgba(255, 255, 255, 0.14);
+    --surface-border-strong: rgba(0, 243, 255, 0.22);
     --glass-bg: rgba(20, 20, 20, 0.6);
     --glass-border: 1px solid rgba(255, 255, 255, 0.1);
     --text-primary: #e0e0e0;
@@ -344,6 +347,8 @@ input {
     color: var(--neon-cyan) !important;
     font-weight: 600;
     border-bottom: 1px solid var(--neon-cyan);
+    text-align: center;
+    vertical-align: middle;
 }
 
 .table-glass td {
@@ -388,4 +393,107 @@ input {
     background-color: var(--neon-green) !important;
     color: #000 !important;
     box-shadow: 0 0 20px rgba(10, 255, 10, 0.5);
+}
+
+/* Dashboard KPI typography hierarchy */
+.dashboard-kpi-card {
+    padding: 0.95rem 1.05rem;
+    min-height: 144px;
+}
+
+.dashboard-kpi-card .kpi-label {
+    font-size: 0.74rem;
+    letter-spacing: 0.07em;
+    margin-bottom: 0.35rem;
+    line-height: 1.2;
+}
+
+.dashboard-kpi-card .kpi-value {
+    font-size: 1.42rem;
+    margin-bottom: 0.18rem;
+    line-height: 1.22;
+}
+
+.kpi-main-value {
+    color: var(--text-primary);
+    font-size: 1.38rem;
+    font-weight: 700;
+    line-height: 1.22;
+    letter-spacing: 0.01em;
+}
+
+.kpi-delta {
+    color: var(--accent-primary);
+    font-size: 0.93rem;
+    margin-bottom: 0.18rem;
+    line-height: 1.2;
+}
+
+.kpi-note {
+    color: var(--text-secondary);
+    font-size: 0.74rem;
+    letter-spacing: 0.01em;
+    line-height: 1.2;
+}
+
+.kpi-meta {
+    color: var(--text-secondary);
+    font-size: 0.78rem;
+    line-height: 1.25;
+}
+
+/* Sidebar spacing rhythm */
+.sidebar-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 0.8rem;
+}
+
+.sidebar-settings-panel .border-secondary {
+    margin-top: 0.35rem;
+    margin-bottom: 0.85rem;
+}
+
+.sidebar-settings-panel h6,
+.sidebar-export-area h6 {
+    margin-bottom: 0.55rem;
+}
+
+.sidebar-settings-panel label,
+.sidebar-export-area label {
+    margin-bottom: 0.35rem;
+}
+
+.sidebar-export-area {
+    display: grid;
+    gap: 0.6rem;
+}
+
+/* Uploaded file status: toned down and aligned to accent rule */
+.upload-status-alert {
+    background: rgba(0, 243, 255, 0.08) !important;
+    border: 1px solid rgba(0, 243, 255, 0.28) !important;
+    color: var(--text-primary) !important;
+    border-radius: 8px;
+}
+
+/* Section structure for consistent panel hierarchy */
+.section-card {
+    border: 1px solid var(--surface-border);
+}
+
+.section-title {
+    color: var(--text-primary);
+    font-size: 1.15rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    border-left: 3px solid var(--accent-primary);
+    padding-left: 0.6rem;
+}
+
+.feature-detail-panel {
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 10px;
+    padding: 0.8rem;
 }

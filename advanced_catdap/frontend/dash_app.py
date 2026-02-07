@@ -13,6 +13,7 @@ import io
 import os
 import time
 import json
+import re
 
 from advanced_catdap.frontend.api_client import APIClient
 from advanced_catdap.service.schema import AnalysisParams
@@ -42,9 +43,22 @@ app = dash.Dash(
 NEON_CYAN = "#00f3ff"
 NEON_MAGENTA = "#bc13fe"
 NEON_GREEN = "#0aff0a"
+UNIFIED_BAR_COLORSCALE = [
+    [0.00, "#1a2230"],
+    [0.45, "#24506a"],
+    [0.75, "#2f7f9a"],
+    [1.00, "#78f3ff"],
+]
+UNIFIED_HEATMAP_COLORSCALE = [
+    [0.00, "#0f131b"],
+    [0.25, "#1a2433"],
+    [0.50, "#24485f"],
+    [0.75, "#2f7f9a"],
+    [1.00, "#78f3ff"],
+]
 TEMPLATE = "plotly_dark"
 
-def create_kpi_card(value, label, subvalue=None, color=None):
+def create_kpi_card(value, label, subvalue=None, color=None, class_name=""):
     """Create a Glassmorphism KPI Card"""
     style_val = {}
     if color:
@@ -58,7 +72,10 @@ def create_kpi_card(value, label, subvalue=None, color=None):
     if subvalue:
         content.append(html.Div(subvalue, className="mt-2 text-muted small"))
         
-    return html.Div(content, className="glass-card text-center h-100 d-flex flex-column justify-content-center")
+    return html.Div(
+        content,
+        className=f"glass-card text-center h-100 d-flex flex-column justify-content-center {class_name}".strip()
+    )
 
 def apply_chart_style(fig):
     """Apply modern dark styling to Plotly figures"""
@@ -86,13 +103,13 @@ def create_sidebar_content():
                 html.Div("Supports: CSV, Parquet, Excel", className="small text-secondary")
             ], className="upload-box"),
             multiple=False,
-            className="mb-4"
+            className="mb-3"
         ),
         
-        html.Div(id='upload-status', className="mb-3"),
+        html.Div(id='upload-status', className="mb-2"),
         
         # Dynamic Content Area (Target/Task/Run)
-        html.Div(id='sidebar-dynamic-content'),
+        html.Div(id='sidebar-dynamic-content', className="mb-1"),
         
         # Expert Area (Always Visible for now to fix callback ID error)
         html.Div([
@@ -103,76 +120,116 @@ def create_sidebar_content():
             dbc.Button([
                 html.I(className="bi bi-download me-2"), "Download HTML Report"
             ], id='btn-export-html', color="info", className="w-100 neon-button")
-        ], id='sidebar-export-area', className="d-grid gap-2 mt-4")
-    ])
+        ], id='sidebar-export-area', className="sidebar-export-area mt-3")
+    ], className="sidebar-stack")
 
-def render_dashboard_tab(result, meta, theme=None): # theme arg kept for compatibility but unused
+def render_dashboard_tab(result, meta, params=None, theme=None): # theme arg kept for compatibility but unused
     if not result:
         return dbc.Alert([html.I(className="bi bi-info-circle me-2"), "Please upload data and run analysis."], color="dark", className="glass-card border-info")
     
     # KPI Calculation
     baseline = result.get('baseline_score', 0)
     fi_data = result.get('feature_importances', [])
+    df_fi_norm = ResultExporter.normalize_feature_importances(fi_data)
     best_aic = baseline
-    if fi_data:
-        df_fi = pd.DataFrame(fi_data)
-        col_map = {c.lower(): c for c in df_fi.columns}
-        score_col = col_map.get('score', 'Score')
-        if score_col in df_fi.columns:
-            best_aic = df_fi[score_col].min()
+    if not df_fi_norm.empty and "Score" in df_fi_norm.columns:
+        score_series = pd.to_numeric(df_fi_norm["Score"], errors="coerce").dropna()
+        if not score_series.empty:
+            best_aic = float(score_series.min())
     
     delta = baseline - best_aic # Improvement
+    pct_change = ((best_aic - baseline) / baseline * 100.0) if baseline else 0.0
     n_selected = len(fi_data)
-    n_total = meta['n_columns'] - 1 if meta else 0
+    n_total = max((meta['n_columns'] - 1), 0) if meta else 0
+    selected_summary = f"{n_selected} / {n_total} features" if n_total else f"{n_selected} features"
 
+    final_mode = str(result.get('mode', 'N/A')).upper()
+    mode_title = final_mode.capitalize() if final_mode != "N/A" else "N/A"
+    requested_task = str((params or {}).get('task_type', 'auto')).lower()
+    requested_task_title = requested_task.capitalize() if requested_task else "Auto"
+    metric_name = "AICc" if bool((params or {}).get('use_aicc', True)) else "AIC"
+    estimator_name = "DecisionTreeRegressor bins" if final_mode == "REGRESSION" else "DecisionTreeClassifier bins"
     # KPI Row
     kpi_row = dbc.Row([
-        dbc.Col(create_kpi_card(f"{baseline:,.0f}", "Baseline AIC"), width=6, lg=3),
-        dbc.Col(create_kpi_card(f"{best_aic:,.0f}", "Optimized AIC", f"Improv: {delta:,.0f}", color=NEON_GREEN), width=6, lg=3),
-        dbc.Col(create_kpi_card(f"{n_selected}", "Selected Features", f"Out of {n_total}"), width=6, lg=3),
-        dbc.Col(create_kpi_card("Auto", "Model Type", result.get('mode', 'N/A')), width=6, lg=3),
-    ], className="mb-4")
-
+        dbc.Col(
+            html.Div([
+                html.Div("AIC Comparison", className="kpi-label"),
+                html.H2(
+                    [
+                        f"{baseline:,.0f} ",
+                        html.Span("->", className="mx-1 text-secondary"),
+                        f"{best_aic:,.0f}",
+                    ],
+                    className="kpi-main-value mb-1"
+                ),
+                html.Div(
+                    [f"Delta {delta:,.0f} ({pct_change:.1f}%)"],
+                    className="kpi-delta fw-semibold"
+                ),
+                html.Small("AIC is better when lower.", className="kpi-note"),
+            ], className="glass-card dashboard-kpi-card text-center h-100 d-flex flex-column justify-content-center"),
+            width=12, lg=4
+        ),
+        dbc.Col(
+            create_kpi_card(selected_summary, "Selected Features", None, class_name="dashboard-kpi-card"),
+            width=12, lg=4
+        ),
+        dbc.Col(
+            html.Div([
+                html.Div("Model Type", className="kpi-label"),
+                html.H2(f"{mode_title} ({requested_task_title})", className="kpi-main-value mb-1"),
+                html.Div(f"Estimator: {estimator_name}", className="kpi-meta"),
+                html.Div(f"Metric: {metric_name}", className="kpi-meta"),
+            ], className="glass-card dashboard-kpi-card text-center h-100 d-flex flex-column justify-content-center"),
+            width=12, lg=4
+        ),
+    ], className="mb-4 g-3")
     # Feature Importance Chart
     fig_fi = go.Figure()
-    if fi_data:
-        df_fi = pd.DataFrame(fi_data)
-        col_map = {c.lower(): c for c in df_fi.columns}
-        feat_col = col_map.get('feature', 'Feature')
-        delta_col = col_map.get('delta_score', col_map.get('deltascore', 'Delta_Score'))
-        
-        if feat_col in df_fi.columns and delta_col in df_fi.columns:
-            print("[DEBUG] df_fi columns:", df_fi.columns)
-            print("[DEBUG] df_fi head:\n", df_fi[[feat_col, delta_col]].head())
-            df_top = df_fi.nlargest(15, delta_col).sort_values(delta_col, ascending=True)
-            fig_fi = px.bar(
-                df_top, x=delta_col, y=feat_col, orientation='h',
-                title="Top Features by Impact (Delta AIC)",
-                color=delta_col,
-                color_continuous_scale="Bluyl",
-                text_auto='.4s' # Show value with SI prefix (e.g. 4.2k)
-            )
-            fig_fi.update_traces(marker_line_width=0, textposition='outside')
+    if not df_fi_norm.empty:
+            print("[DEBUG] normalized feature_importances head:\n", df_fi_norm.head())
+            df_top = df_fi_norm.nlargest(15, "Delta_Score").sort_values("Delta_Score", ascending=True)
+            x_vals = [float(v) for v in df_top["Delta_Score"].tolist()]
+            y_vals = df_top["Feature"].astype(str).tolist()
+            text_vals = [ResultExporter._format_compact(v) for v in x_vals]
+            fig_fi = go.Figure()
+            fig_fi.add_trace(go.Bar(
+                x=x_vals,
+                y=y_vals,
+                orientation='h',
+                text=text_vals,
+                texttemplate="%{text}",
+                textposition='outside',
+                marker=dict(
+                    color=x_vals,
+                    colorscale=UNIFIED_BAR_COLORSCALE,
+                    line=dict(width=0),
+                    showscale=False
+                ),
+                hovertemplate="Feature=%{y}<br>Delta_Score=%{x:.6g}<extra></extra>"
+            ))
+            fig_fi.update_layout(title="Top Features by Impact (Delta AIC)")
             fig_fi.update_layout(coloraxis_showscale=False, margin=dict(r=50)) # Add margin for text
             apply_chart_style(fig_fi)
 
     # Interactions Heatmap
     fig_heat = go.Figure()
     data_ii = result.get('interaction_importances', [])
-    if data_ii:
-        df_ii = pd.DataFrame(data_ii)
-        col_map = {c.lower(): c for c in df_ii.columns}
-        feat1_col = col_map.get('feature_1', 'Feature_1')
-        feat2_col = col_map.get('feature_2', 'Feature_2')
-        gain_col = col_map.get('gain', 'Gain')
-        
-        if feat1_col in df_ii.columns and feat2_col in df_ii.columns and gain_col in df_ii.columns:
-            fig_heat = px.density_heatmap(
-                df_ii, x=feat1_col, y=feat2_col, z=gain_col, histfunc="sum",
-                title="Interaction Network",
-                color_continuous_scale="Viridis" # Good for dark
-            )
-            apply_chart_style(fig_heat)
+    df_ii_norm = ResultExporter.normalize_interaction_importances(data_ii)
+    mat = ResultExporter.build_interaction_matrix(df_ii_norm)
+    if mat.empty:
+        mat = ResultExporter.build_interaction_matrix_from_details(result.get("interaction_details", {}))
+    if not mat.empty:
+        fig_heat = go.Figure(data=go.Heatmap(
+            z=mat.values,
+            x=mat.columns.tolist(),
+            y=mat.index.tolist(),
+            colorscale=UNIFIED_HEATMAP_COLORSCALE,
+            colorbar=dict(title="Gain"),
+            hovertemplate="Feature_1=%{x}<br>Feature_2=%{y}<br>Gain=%{z:.6g}<extra></extra>"
+        ))
+        fig_heat.update_layout(title="Interaction Network")
+        apply_chart_style(fig_heat)
 
     # Charts Layout
     charts_row = dbc.Row([
@@ -201,11 +258,10 @@ def render_deepdive_tab(result, selected_mode, selected_feature, theme, meta=Non
     selector_card = html.Div([
         dbc.Row([
             dbc.Col([
-                dbc.Label("1. Selection Mode", className="text-info small"),
                 dbc.RadioItems(
                     id={'type': 'deepdive-mode', 'index': 0},
                     options=[
-                        {'label': 'Top 5 Drivers', 'value': 'top5'},
+                        {'label': 'Top 5 Features', 'value': 'top5'},
                         {'label': 'Select Feature', 'value': 'select'}
                     ],
                     value=selected_mode or 'top5',
@@ -214,22 +270,21 @@ def render_deepdive_tab(result, selected_mode, selected_feature, theme, meta=Non
                     labelClassName="btn btn-outline-info",
                     labelCheckedClassName="active",
                 )
-            ], md=5),
+            ], md=4),
             dbc.Col([
                 html.Div([
-                    dbc.Label("2. Select Feature", className="text-info small"),
                     dbc.Select(
                         id={'type': 'deepdive-feat-select', 'index': 0},
                         options=[{'label': f, 'value': f} for f in dropdown_features],
                         value=selected_feature or (dropdown_features[0] if dropdown_features else None),
                         placeholder="Select feature...",
                         # disabled handled by callback, but visibility is better
-                        className="mb-3"
+                        className="mb-0"
                     )
                 ], id={'type': 'feature-select-container', 'index': 0}, style={'display': 'none' if selected_mode == 'top5' else 'block'})
             ], md=8)
-        ], className="align-items-center")
-    ], className="glass-card p-3 mb-3")
+        ], className="align-items-center g-3")
+    ], className="mb-2")
 
     content_area = []
     features_to_show = []
@@ -237,12 +292,9 @@ def render_deepdive_tab(result, selected_mode, selected_feature, theme, meta=Non
     
     if selected_mode == 'top5':
          if fi_data:
-            df_fi = pd.DataFrame(fi_data)
-            col_map = {c.lower(): c for c in df_fi.columns}
-            feat_col = col_map.get('feature', 'Feature')
-            delta_col = col_map.get('delta_score', 'Delta_Score')
-            if feat_col in df_fi.columns and delta_col in df_fi.columns:
-                features_to_show = df_fi.nlargest(5, delta_col)[feat_col].tolist()
+            df_fi_norm = ResultExporter.normalize_feature_importances(fi_data)
+            if not df_fi_norm.empty:
+                features_to_show = df_fi_norm.nlargest(5, "Delta_Score")["Feature"].tolist()
     else:
         # Select Mode
         if selected_feature:
@@ -282,7 +334,7 @@ def render_deepdive_tab(result, selected_mode, selected_feature, theme, meta=Non
             fig.add_trace(go.Scatter(
                 x=bin_labels, y=bin_means, name=target_label,
                 yaxis='y2', mode='lines+markers',
-                line=dict(color=NEON_MAGENTA, width=3)
+                line=dict(color=NEON_CYAN, width=3)
             ))
             
         fig.update_layout(
@@ -307,8 +359,8 @@ def render_deepdive_tab(result, selected_mode, selected_feature, theme, meta=Non
                     dbc.Table.from_dataframe(df_table, striped=False, bordered=False, hover=True,
                         className="table-glass small")
                 ], md=4, className="d-flex flex-column justify-content-center")
-            ])
-        ], className="glass-card mb-3"))
+            ], className="g-3")
+        ], className="feature-detail-panel mb-2"))
 
     # Interaction Detail
     interaction_area = []
@@ -317,7 +369,6 @@ def render_deepdive_tab(result, selected_mode, selected_feature, theme, meta=Non
         int_keys = list(interaction_details.keys())
         current_pair = selected_interaction_pair or int_keys[0]
         
-        interaction_area.append(html.H4("Interaction Detail", className="text-info mt-4 mb-3"))
         interaction_area.append(dbc.Select(
             id={'type': 'deepdive-interaction-select', 'index': 0},
             options=[{'label': k, 'value': k} for k in int_keys],
@@ -327,12 +378,29 @@ def render_deepdive_tab(result, selected_mode, selected_feature, theme, meta=Non
         
         det = interaction_details.get(current_pair)
         if det:
+            feature_1 = det.get('feature_1', 'Feature 1')
+            feature_2 = det.get('feature_2', 'Feature 2')
             fig_int = go.Figure(data=go.Heatmap(
                 z=det['means'], x=det['bin_labels_2'], y=det['bin_labels_1'],
-                colorscale='Viridis', colorbar=dict(title="Target")
+                colorscale=UNIFIED_HEATMAP_COLORSCALE, colorbar=dict(title="Target")
             ))
             apply_chart_style(fig_int)
-            fig_int.update_layout(title=f"{det['feature_1']} vs {det['feature_2']}")
+            fig_int.update_layout(
+                title=f"{feature_1} vs {feature_2}",
+                xaxis_title=feature_2,
+                yaxis_title=feature_1,
+                xaxis=dict(
+                    tickfont=dict(size=11),
+                    title_font=dict(size=12, color="#cfd8dc"),
+                    title_standoff=10
+                ),
+                yaxis=dict(
+                    tickfont=dict(size=11),
+                    title_font=dict(size=12, color="#cfd8dc"),
+                    title_standoff=10
+                ),
+                margin=dict(l=70, r=28, t=56, b=60),
+            )
             interaction_area.append(html.Div(dcc.Graph(figure=fig_int), className="glass-card"))
 
             # Interaction Tables
@@ -359,7 +427,30 @@ def render_deepdive_tab(result, selected_mode, selected_feature, theme, meta=Non
 
 
 
-    return html.Div([selector_card] + content_area + interaction_area)
+    feature_section = html.Div([
+        html.Div(
+            [
+                html.H4("Feature Analysis", className="section-title mb-3"),
+                selector_card,
+                html.Div(
+                    content_area if content_area else [dbc.Alert("No feature detail data available.", color="secondary", className="mb-0")]
+                ),
+            ],
+            className="glass-card section-card p-3 mb-3"
+        ),
+    ])
+
+    interaction_section = html.Div([
+        html.Div(
+            [
+                html.H4("Bivariate Interaction Analysis", className="section-title mb-3"),
+                *(interaction_area if interaction_area else [dbc.Alert("No interaction detail data available.", color="secondary", className="mb-0")]),
+            ],
+            className="glass-card section-card p-3 mb-3"
+        ),
+    ])
+
+    return html.Div([feature_section, interaction_section])
 
 # ============================================================
 # Main Layout
@@ -475,9 +566,9 @@ def handle_file_upload(contents, filename):
                 ], start_collapsed=True, className="mb-3"),
 
                 dbc.Button("Run Analysis", id='run-btn', color="primary", className="w-100 neon-button")
-        ], className="mt-3")
+        ], className="sidebar-settings-panel mt-2")
         
-        return dbc.Alert(f"Loaded: {filename}", color="success", className="py-2 small"), meta_dict, settings
+        return dbc.Alert(f"Loaded: {filename}", color="dark", className="upload-status-alert py-2 small"), meta_dict, settings
     except Exception as e:
         return dbc.Alert(f"Error: {str(e)}", color="danger"), None, None
 
@@ -549,9 +640,9 @@ def poll_job(n, job_id):
         status = info.get('status')
         
         if status in ['completed', 'SUCCESS']:
-            return info.get('result'), True, dbc.Alert("✅ Analysis Completed Successfully", color="success", className="glass-card")
+            return info.get('result'), True, dbc.Alert('Analysis Completed Successfully', color='success', className='glass-card')
         elif status in ['failed', 'FAILURE']:
-             return None, True, dbc.Alert(f"❌ Job Failed: {info.get('error')}", color="danger", className="glass-card")
+             return None, True, dbc.Alert(f"Job Failed: {info.get('error')}", color="danger", className="glass-card")
         else:
             stage = info.get('progress', {}).get('stage', 'Processing...')
             return dash.no_update, False, dbc.Alert([dbc.Spinner(size="sm", spinner_class_name="me-2"), stage], color="info", className="glass-card border-info")
@@ -578,12 +669,14 @@ def poll_job(n, job_id):
     Output("download-html-report", "data"),
     Input("btn-export-html", "n_clicks"),
     State("store-analysis-result", "data"),
+    State("store-job-id", "data"),
     State("store-dataset-meta", "data"),
     State("report-filename-input", "value"),
+    State("store-analysis-params", "data"),
     State("theme-store", "data"),
     prevent_initial_call=True
 )
-def download_html_report(n_clicks, result, meta, custom_filename, theme):
+def download_html_report(n_clicks, result, job_id, meta, custom_filename, analysis_params, theme):
     if not n_clicks or not result: return dash.no_update
     
     # Generate filename
@@ -597,6 +690,8 @@ def download_html_report(n_clicks, result, meta, custom_filename, theme):
         import datetime
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M")
         original_name = "AdvancedCATDAP"
+        target_variable = None
+        task_type = None
         if meta:
             if 'filename' in meta and meta['filename']:
                  base = os.path.basename(meta['filename'])
@@ -604,11 +699,45 @@ def download_html_report(n_clicks, result, meta, custom_filename, theme):
             elif 'dataset_id' in meta:
                 base = os.path.basename(meta['dataset_id'])
                 original_name, _ = os.path.splitext(base)
-        
-        filename = f"{original_name}_Report_{timestamp}.html"
+        if isinstance(analysis_params, dict):
+            target_variable = analysis_params.get("target_col")
+            task_type = analysis_params.get("task_type")
+        def _safe_name_part(value, default="NA"):
+            text = str(value or "").strip()
+            if not text:
+                return default
+            text = re.sub(r"[^A-Za-z0-9._-]+", "-", text).strip("-_.")
+            return text or default
+        safe_target = _safe_name_part(target_variable, "UnknownTarget")
+        safe_task = _safe_name_part(task_type, "UnknownTask")
+        filename = f"{original_name}_Target-{safe_target}_Task-{safe_task}_Report_{timestamp}.html"
     
     try:
-        html_io = ResultExporter.generate_html_report(result, meta, theme=theme)
+        report_result = result
+        # Export should use the freshest backend payload to avoid stale/partial store state.
+        if job_id:
+            try:
+                job_info = client.get_job_status(job_id)
+                latest = job_info.get("result") if isinstance(job_info, dict) else None
+                if isinstance(latest, dict) and latest:
+                    report_result = latest
+                if isinstance(job_info, dict):
+                    params_from_job = job_info.get("params")
+                    if isinstance(params_from_job, dict):
+                        if "Target-UnknownTarget" in filename and params_from_job.get("target_col"):
+                            filename = filename.replace(
+                                "Target-UnknownTarget",
+                                f"Target-{re.sub(r'[^A-Za-z0-9._-]+', '-', str(params_from_job.get('target_col'))).strip('-_.') or 'UnknownTarget'}"
+                            )
+                        if "Task-UnknownTask" in filename and params_from_job.get("task_type"):
+                            filename = filename.replace(
+                                "Task-UnknownTask",
+                                f"Task-{re.sub(r'[^A-Za-z0-9._-]+', '-', str(params_from_job.get('task_type'))).strip('-_.') or 'UnknownTask'}"
+                            )
+            except Exception as fetch_err:
+                print(f"[WARN] Failed to refresh job result for export: {fetch_err}")
+
+        html_io = ResultExporter.generate_html_report(report_result, meta, theme=theme)
         return dcc.send_bytes(html_io.getvalue(), filename)
     except Exception as e:
         print(f"[ERROR] Export failed: {e}")
@@ -630,7 +759,7 @@ def download_html_report(n_clicks, result, meta, custom_filename, theme):
 def render_content(active_tab, result, deepdive_state, theme, meta, params): # theme unused but kept in sig
     try:
         if active_tab == 'tab-dashboard':
-            return render_dashboard_tab(result, meta)
+            return render_dashboard_tab(result, meta, params)
         elif active_tab == 'tab-deepdive':
             mode = deepdive_state.get('mode', 'top5') if deepdive_state else 'top5'
             feat = deepdive_state.get('feature') if deepdive_state else None
@@ -671,3 +800,5 @@ def update_deepdive_state(mode_vals, feat_vals, int_vals, current_state):
 server = app.server
 if __name__ == '__main__':
     app.run(debug=True, port=8050)
+
+

@@ -231,12 +231,18 @@ plot_interaction_heatmap(model.interaction_importances_)
 
 ```bash
 # Run all tests
-uv run pytest
+uv run pytest -q
 
 # With coverage
 uv run pytest --cov=advanced_catdap --cov-report=term-missing
 
-# Current coverage: 91%
+# Run integration tests only
+uv run pytest -q -m integration
+
+# Run all tests including integration
+uv run pytest -q -m "not integration or integration"
+
+# Current coverage (exporter): 97%
 ```
 
 ### Code Quality
