@@ -77,3 +77,10 @@ def test_upload_and_flow(mock_dataset_storage, mock_job_manager):
     res_status = client.get(f"/jobs/{job_id}")
     assert res_status.status_code == 200
     assert res_status.json()["status"] == "SUCCESS"
+
+
+def test_cancel_job_returns_501_when_not_supported():
+    with patch("advanced_catdap.service.api.job_manager.cancel_job", side_effect=NotImplementedError("not implemented")):
+        res = client.delete("/jobs/abc123")
+    assert res.status_code == 501
+    assert "not implemented" in res.json()["detail"]

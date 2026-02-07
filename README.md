@@ -146,7 +146,7 @@ AdvancedCATDAP/
 | `GET` | `/datasets/{id}/preview` | Preview first N rows |
 | `POST` | `/jobs` | Submit analysis job |
 | `GET` | `/jobs/{id}` | Get job status/results |
-| `DELETE` | `/jobs/{id}` | Cancel job |
+| `DELETE` | `/jobs/{id}` | Cancel job (currently returns 501 Not Implemented) |
 
 ### Python API
 

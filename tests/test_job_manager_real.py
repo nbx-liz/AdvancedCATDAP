@@ -51,3 +51,8 @@ def test_job_different_params(clean_job_dir):
             id2 = mgr.submit_job(ds_id, AnalysisParams(target_col="t2"))
             
             assert id1 != id2
+
+
+def test_cancel_job_not_implemented(clean_job_dir):
+    with pytest.raises(NotImplementedError, match="not implemented"):
+        clean_job_dir.cancel_job("job-id")
