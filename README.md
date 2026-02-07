@@ -33,7 +33,7 @@ uv sync --all-extras
 
 # Install with optional dependencies
 pip install ".[web]"     # FastAPI + Dash
-pip install ".[gui]"     # Streamlit + Plotly
+pip install ".[gui]"     # Dash + Plotly
 pip install ".[desktop]" # PyInstaller + pywebview
 pip install ".[all]"     # Everything
 ```
@@ -95,7 +95,7 @@ iscc setup.iss
 
 The desktop app opens in a native window (not browser) and includes:
 - FastAPI backend (auto-started)
-- Streamlit frontend (auto-started)
+- Dash frontend (auto-started)
 - Clean shutdown on window close
 
 ---
@@ -104,34 +104,33 @@ The desktop app opens in a native window (not browser) and includes:
 
 ```
 AdvancedCATDAP/
-├── advanced_catdap/           # Main package
-│   ├── core.py                # AdvancedCATDAP class (main entry point)
-│   ├── config.py              # Configuration constants
-│   ├── visualizer.py          # Plotting utilities
-│   ├── components/            # Core algorithm components
-│   │   ├── discretizer.py     # Discretization strategies
-│   │   ├── scoring.py         # AIC/AICc scoring
-│   │   ├── task_detector.py   # Auto task type detection
-│   │   ├── interaction_searcher.py  # Interaction discovery
-│   │   └── utils.py           # Helper functions
-│   ├── frontend/              # Dash UI
-│   │   ├── dash_app.py        # Main Dash app
-│   │   ├── app_legacy.py      # Archive (Streamlit)
-│   │   └── api_client.py      # API client for frontend
-│   └── service/               # Backend services
-│       ├── api.py             # FastAPI endpoints
-│       ├── analyzer.py        # Analysis orchestration
-│       ├── job_manager.py     # Background job management
-│       ├── dataset_manager.py # Dataset storage
-│       └── schema.py          # Pydantic models
-├── scripts/                   # Utility scripts
-│   ├── launch_gui.py          # Launch web GUI
-│   ├── windows_main.py        # Windows desktop entry point
-│   └── generate_demo_data.py  # Generate sample data
-├── examples/                  # Example scripts
-├── tests/                     # Test suite
-├── build.spec                 # PyInstaller configuration
-└── setup.iss                  # Inno Setup installer script
+笏懌楳笏 advanced_catdap/           # Main package
+笏・  笏懌楳笏 core.py                # AdvancedCATDAP class (main entry point)
+笏・  笏懌楳笏 config.py              # Configuration constants
+笏・  笏懌楳笏 visualizer.py          # Plotting utilities
+笏・  笏懌楳笏 components/            # Core algorithm components
+笏・  笏・  笏懌楳笏 discretizer.py     # Discretization strategies
+笏・  笏・  笏懌楳笏 scoring.py         # AIC/AICc scoring
+笏・  笏・  笏懌楳笏 task_detector.py   # Auto task type detection
+笏・  笏・  笏懌楳笏 interaction_searcher.py  # Interaction discovery
+笏・  笏・  笏披楳笏 utils.py           # Helper functions
+笏・  笏懌楳笏 frontend/              # Dash UI
+笏・  笏・  笏懌楳笏 dash_app.py        # Main Dash app
+笏・  笏・  笏披楳笏 api_client.py      # API client for frontend
+笏・  笏披楳笏 service/               # Backend services
+笏・      笏懌楳笏 api.py             # FastAPI endpoints
+笏・      笏懌楳笏 analyzer.py        # Analysis orchestration
+笏・      笏懌楳笏 job_manager.py     # Background job management
+笏・      笏懌楳笏 dataset_manager.py # Dataset storage
+笏・      笏披楳笏 schema.py          # Pydantic models
+笏懌楳笏 scripts/                   # Utility scripts
+笏・  笏懌楳笏 launch_gui.py          # Launch web GUI
+笏・  笏懌楳笏 windows_main.py        # Windows desktop entry point
+笏・  笏披楳笏 generate_demo_data.py  # Generate sample data
+笏懌楳笏 examples/                  # Example scripts
+笏懌楳笏 tests/                     # Test suite
+笏懌楳笏 build.spec                 # PyInstaller configuration
+笏披楳笏 setup.iss                  # Inno Setup installer script
 ```
 
 ---
@@ -287,4 +286,5 @@ AdvancedCATDAP optimizes feature engineering by minimizing the **Akaike Informat
 ## License
 
 MIT
+
 
