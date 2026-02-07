@@ -563,11 +563,16 @@ def download_html_report(n_clicks, result, meta):
     import datetime
     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M")
     original_name = "AdvancedCATDAP"
-    if meta and 'dataset_id' in meta:
-        # cleanup filename
-        import os
-        base = os.path.basename(meta['dataset_id'])
-        original_name, _ = os.path.splitext(base)
+    if meta:
+        # meta is a dict (pydantic model dump)
+        if 'filename' in meta and meta['filename']:
+             # Use the original filename stored in metadata
+             base = os.path.basename(meta['filename'])
+             original_name, _ = os.path.splitext(base)
+        elif 'dataset_id' in meta:
+            # Fallback (though dataset_id is UUID now)
+            base = os.path.basename(meta['dataset_id'])
+            original_name, _ = os.path.splitext(base)
     
     filename = f"{original_name}_Report_{timestamp}.html"
     

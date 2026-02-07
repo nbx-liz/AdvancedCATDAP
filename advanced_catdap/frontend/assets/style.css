@@ -56,32 +56,67 @@ body {
 }
 
 /* Dropdown (React-Select) Overrides for Dark Theme */
-/* Ensures the white default of React-Select works in Dark Mode */
-.Select-control {
-    background-color: rgba(255, 255, 255, 0.05) !important;
-    border: 1px solid rgba(255, 255, 255, 0.2) !important;
-    color: white !important;
+.Select-control,
+.Select-multi-value-wrapper,
+.Select-placeholder,
+.Select-input {
+    background-color: #222 !important;
+    border-color: #444 !important;
+    color: #e0e0e0 !important;
 }
 
 .Select-value-label {
-    color: white !important;
+    color: #e0e0e0 !important;
 }
 
 .Select-menu-outer {
     background-color: #222 !important;
     border: 1px solid #444 !important;
-    color: white !important;
-    z-index: 9999 !important;
-    /* Ensure dropdown is on top */
+    color: #e0e0e0 !important;
 }
 
 .Select-option {
     background-color: #222 !important;
-    color: #ddd !important;
+    color: #e0e0e0 !important;
 }
 
+.Select-option.is-focused,
 .Select-option:hover {
     background-color: #444 !important;
+    color: #fff !important;
+}
+
+/* React-Select v2+ (Dash 2.0+) uses different class prefixes usually, but sometimes falls back to these if standard theme is used.
+   However, Dash often uses Emotion/CSS-in-JS.
+   Let's target based on common Dash/React-Select attributes if possible, or just be very generic.
+*/
+
+/* Target any div that looks like a control */
+div[class*="control"] {
+    background-color: #222 !important;
+    color: #e0e0e0 !important;
+    border-color: #444 !important;
+}
+
+/* Target menu */
+div[class*="menu"] {
+    background-color: #222 !important;
+    color: #e0e0e0 !important;
+}
+
+/* Target option */
+div[class*="option"] {
+    background-color: #222 !important;
+    color: #e0e0e0 !important;
+}
+
+div[class*="option"]:hover {
+    background-color: #444 !important;
+}
+
+/* Target specific Dash Dropdown Container to be safe */
+.dash-dropdown .Select-control {
+    background-color: #222 !important;
 }
 
 .Select-placeholder {

@@ -48,18 +48,17 @@ class ResultExporter:
             delta_col = col_map.get('delta_score', 'Delta_Score')
             
             if feat_col in df_fi.columns and delta_col in df_fi.columns:
-                df_top = df_fi.sort_values(delta_col, ascending=True) # Full list for chart
-                # Limit to top 30 for the static chart readability, or full if user wants scrolly
-                df_top_chart = df_top.tail(30) 
+                # MATCH GUI LOGIC: Top 15 by Delta AIC, then sorted
+                df_top = df_fi.nlargest(15, delta_col).sort_values(delta_col, ascending=True)
                 
                 fig_fi = px.bar(
-                    df_top_chart, x=delta_col, y=feat_col, orientation='h',
+                    df_top, x=delta_col, y=feat_col, orientation='h',
                     title="Top Features by Impact (Delta AIC)",
                     color=delta_col,
                     color_continuous_scale="Bluyl"
                 )
                 fig_fi.update_layout(
-                    height=max(600, len(df_top_chart) * 20),
+                    height=500, # Fixed height for Top 15
                     margin=dict(l=20, r=20, t=40, b=20),
                     paper_bgcolor='rgba(0,0,0,0)',
                     plot_bgcolor='rgba(0,0,0,0)'
@@ -186,13 +185,14 @@ class ResultExporter:
                     /* GUI-Like Dark Mode (Cyborg/Hybrid) */
                     --bg-color: #060606;
                     --text-color: #e0e0e0;
-                    --card-bg: #111;
-                    --card-border: 1px solid #333;
+                    --card-bg: rgba(20, 20, 20, 0.6); /* Glass effect base */
+                    --card-border: 1px solid rgba(255, 255, 255, 0.1);
                     --header-bg: linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%);
                     --table-color: #e0e0e0;
-                    --table-bg: #1a1a1a;
-                    --table-border-color: #444;
-                    --table-head-bg: #2c2c2c;
+                    --table-bg: transparent; /* Transparent for glass effect */
+                    --table-border-color: rgba(255, 255, 255, 0.1);
+                    --table-head-bg: rgba(0, 243, 255, 0.1); /* Neon Cyan tint */
+                    --table-head-color: #00f3ff; /* Neon Cyan */
                     --select-bg: #1a1a1a;
                     --select-color: #e0e0e0;
                 }}
@@ -202,19 +202,38 @@ class ResultExporter:
                     color: var(--text-color); 
                     transition: background-color 0.3s, color 0.3s; 
                     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                    background-image: var(--bg-image, none);
                 }}
                 
-                .card {{ background-color: var(--card-bg); color: var(--text-color); margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); border: var(--card-border); }}
+                body.dark-mode {{
+                     background: radial-gradient(circle at 10% 20%, rgb(20, 20, 20) 0%, rgb(0, 0, 0) 90%);
+                }}
+                
+                .card {{ 
+                    background-color: var(--card-bg); 
+                    color: var(--text-color); 
+                    margin-bottom: 20px; 
+                    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37); /* Stronger shadow */
+                    border: var(--card-border); 
+                    backdrop-filter: blur(12px);
+                    -webkit-backdrop-filter: blur(12px);
+                    border-radius: 10px;
+                }}
                 .header {{ background: var(--header-bg); color: white; padding: 20px; margin-bottom: 30px; border-radius: 0 0 20px 20px; position: relative; }}
                 .nav-pills .nav-link.active {{ background-color: #0d6efd; }}
                 .plot-container {{ width: 100%; }}
                 .hidden {{ display: none; }}
                 
-                /* Table Styling */
+                /* Table Styling - Glassmorphism Match */
                 table {{ color: var(--table-color) !important; background-color: var(--table-bg) !important; }}
                 .table {{ --bs-table-bg: var(--table-bg); --bs-table-color: var(--table-color); --bs-table-border-color: var(--table-border-color); }}
-                .table thead th {{ background-color: var(--table-head-bg); color: var(--text-color); border-bottom: 2px solid var(--table-border-color); }}
-                .table-hover tbody tr:hover td {{ color: var(--text-color); background-color: rgba(0,0,0,0.05); }}
+                .table thead th {{ 
+                    background-color: var(--table-head-bg) !important; 
+                    color: var(--table-head-color) !important; 
+                    border-bottom: 1px solid var(--table-head-color) !important; 
+                    font-weight: 600;
+                }}
+                .table-hover tbody tr:hover td {{ color: var(--text-color); background-color: rgba(255,255,255,0.05); }}
                 body.dark-mode .table-hover tbody tr:hover td {{ background-color: rgba(255,255,255,0.1); }}
                 
                 /* Select High Contrast */
@@ -222,6 +241,7 @@ class ResultExporter:
                     background-color: var(--select-bg);
                     color: var(--select-color);
                     border-color: var(--text-color);
+                    border-radius: 5px;
                 }}
                 
                 #theme-toggle {{

@@ -47,7 +47,7 @@ async def upload_dataset(file: UploadFile = File(...)):
         tmp_path = tmp.name
     
     try:
-        metadata = dataset_manager.register_dataset(tmp_path)
+        metadata = dataset_manager.register_dataset(tmp_path, original_filename=file.filename)
         return metadata
     finally:
         if os.path.exists(tmp_path):
