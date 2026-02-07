@@ -201,7 +201,7 @@ def render_deepdive_tab(result, selected_mode, selected_feature, theme, meta=Non
     selector_card = html.Div([
         dbc.Row([
             dbc.Col([
-                dbc.Label("Selection Mode"),
+                dbc.Label("1. Selection Mode", className="text-info small"),
                 dbc.RadioItems(
                     id={'type': 'deepdive-mode', 'index': 0},
                     options=[
@@ -211,9 +211,9 @@ def render_deepdive_tab(result, selected_mode, selected_feature, theme, meta=Non
                     value=selected_mode or 'top5', inline=True,
                     className="mb-2"
                 )
-            ], md=4),
+            ], md=5),
             dbc.Col([
-                dbc.Label("Select Feature"),
+                dbc.Label("2. Select Feature", className="text-info small"),
                 dbc.Select(
                     id={'type': 'deepdive-feat-select', 'index': 0},
                     options=[{'label': f, 'value': f} for f in dropdown_features],
@@ -313,11 +313,10 @@ def render_deepdive_tab(result, selected_mode, selected_feature, theme, meta=Non
         current_pair = selected_interaction_pair or int_keys[0]
         
         interaction_area.append(html.H4("Interaction Detail", className="text-info mt-4 mb-3"))
-        interaction_area.append(dcc.Dropdown(
+        interaction_area.append(dbc.Select(
             id={'type': 'deepdive-interaction-select', 'index': 0},
             options=[{'label': k, 'value': k} for k in int_keys],
             value=current_pair,
-            clearable=False,
             className="mb-3"
         ))
         
@@ -493,15 +492,24 @@ def handle_file_upload(contents, filename):
 )
 def submit_job(n_clicks, meta, target_col, task_type, max_bins, top_k, use_aicc):
     if not n_clicks or not meta: return dash.no_update, dash.no_update, dash.no_update, dash.no_update
-    print(f"[DEBUG] Submit Job Clicked. Target: {target_col}")
+    print(f"[DEBUG] Submit Job Clicked. Target: {target_col}, Task: {task_type}")
     try:
         # Default params
+        if not target_col or target_col == "":
+             return dash.no_update, dash.no_update, dash.no_update, dbc.Alert("Please select a Target Variable", color="warning", className="glass-card")
+             
         col_names = [c['name'] for c in meta['columns']]
         candidates = [c for c in col_names if c != target_col]
+        
+        # Ensure task_type is valid
+        eff_task = task_type
+        if not eff_task or eff_task == "":
+            eff_task = "auto"
+            
         params = AnalysisParams(
             target_col=target_col, 
             candidate_features=candidates, 
-            task_type=task_type or "auto",
+            task_type=eff_task,
             max_bins=max_bins,
             top_k=top_k,
             use_aicc=use_aicc
@@ -545,19 +553,19 @@ def poll_job(n, job_id):
     except Exception as e:
          return None, True, dbc.Alert(f"polling Error: {e}", color="danger")
 
-@callback(
-    Output('sidebar-export-area', 'children'),
-    Input('store-analysis-result', 'data'),
-    prevent_initial_call=True
-)
-def show_export_button(result):
-    if not result: return ""
-    return html.Div([
-        dbc.Button([
-            html.I(className="bi bi-filetype-html me-2"),
-            "Export Interactive Report"
-        ], id='btn-export-html', color="info", className="w-100 neon-button")
-    ])
+# @callback(
+#     Output('sidebar-export-area', 'children'),
+#     Input('store-analysis-result', 'data'),
+#     prevent_initial_call=True
+# )
+# def show_export_button(result):
+#     if not result: return ""
+#     return html.Div([
+#         dbc.Button([
+#             html.I(className="bi bi-filetype-html me-2"),
+#             "Export Interactive Report"
+#         ], id='btn-export-html', color="info", className="w-100 neon-button")
+#     ])
 
 
 
