@@ -1,25 +1,59 @@
 from fastapi import FastAPI, HTTPException, UploadFile, File, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
-from typing import List, Optional
+from typing import List, Optional, Any
 import shutil
 import os
 import tempfile
 from pathlib import Path
 import pandas as pd
+import logging
 
 from advanced_catdap.service.dataset_manager import DatasetManager
 from advanced_catdap.service.job_manager import JobManager
 from advanced_catdap.service.schema import DatasetMetadata, AnalysisParams, AnalysisResult
 
 app = FastAPI(title="AdvancedCATDAP API", version="0.1.0")
+logger = logging.getLogger(__name__)
+
+DEFAULT_CORS_ALLOW_ORIGINS = [
+    "http://127.0.0.1:8050",
+    "http://localhost:8050",
+]
+
+
+def _env_bool(name: str, default: bool) -> bool:
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def resolve_cors_settings() -> dict[str, Any]:
+    raw_origins = os.environ.get("CATDAP_CORS_ALLOW_ORIGINS", "")
+    if raw_origins.strip():
+        allow_origins = [o.strip() for o in raw_origins.split(",") if o.strip()]
+    else:
+        allow_origins = list(DEFAULT_CORS_ALLOW_ORIGINS)
+
+    allow_credentials = _env_bool("CATDAP_CORS_ALLOW_CREDENTIALS", False)
+    if allow_origins == ["*"] and allow_credentials:
+        logger.warning("allow_credentials=True with wildcard origin is insecure.")
+
+    return {
+        "allow_origins": allow_origins,
+        "allow_credentials": allow_credentials,
+        "allow_methods": ["*"],
+        "allow_headers": ["*"],
+    }
 
 # CORS setup (allow all for local dev)
+cors_settings = resolve_cors_settings()
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=cors_settings["allow_origins"],
+    allow_credentials=cors_settings["allow_credentials"],
+    allow_methods=cors_settings["allow_methods"],
+    allow_headers=cors_settings["allow_headers"],
 )
 
 # Dependencies (Simple Singleton pattern for MVP)
