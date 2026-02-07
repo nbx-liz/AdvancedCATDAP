@@ -77,6 +77,18 @@ def test_render_dashboard_tab_with_data():
     assert "Interaction Network" in str(view)
 
 
+def test_render_dashboard_tab_handles_infinity_baseline():
+    result = _full_result_payload()
+    result["baseline_score"] = "Infinity"
+    result["feature_importances"] = [
+        {"feature": "Age", "score": "Infinity", "delta_score": None, "actual_bins": 3, "method": "tree_2(3)"}
+    ]
+    view = dash_mod.render_dashboard_tab(result, {"n_columns": 4}, {"task_type": "auto"})
+    as_text = str(view)
+    assert "AIC Comparison" in as_text
+    assert "Delta N/A" in as_text
+
+
 def test_render_deepdive_tab_modes():
     result = _full_result_payload()
     deep_top = dash_mod.render_deepdive_tab(
