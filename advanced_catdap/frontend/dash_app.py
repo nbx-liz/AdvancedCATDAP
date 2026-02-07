@@ -14,6 +14,7 @@ import os
 import time
 import json
 import re
+import logging
 
 from advanced_catdap.frontend.api_client import APIClient
 from advanced_catdap.service.schema import AnalysisParams
@@ -22,10 +23,11 @@ from advanced_catdap.service.exporter import ResultExporter
 # Initialize API client
 API_URL = os.environ.get("API_URL", "http://127.0.0.1:8000")
 client = APIClient(base_url=API_URL)
+logger = logging.getLogger(__name__)
 
 def configure_api_client(api_url):
     global client
-    print(f"[INFO] 配置 API Client to: {api_url}")
+    logger.info("Configuring API client to %s", api_url)
     client = APIClient(base_url=api_url)
 
 # Initialize Dash app with CYBORG theme (Dark)
@@ -187,7 +189,7 @@ def render_dashboard_tab(result, meta, params=None, theme=None): # theme arg kep
     # Feature Importance Chart
     fig_fi = go.Figure()
     if not df_fi_norm.empty:
-            print("[DEBUG] normalized feature_importances head:\n", df_fi_norm.head())
+            logger.debug("normalized feature_importances head:\n%s", df_fi_norm.head())
             df_top = df_fi_norm.nlargest(15, "Delta_Score").sort_values("Delta_Score", ascending=True)
             x_vals = [float(v) for v in df_top["Delta_Score"].tolist()]
             y_vals = df_top["Feature"].astype(str).tolist()
@@ -252,7 +254,7 @@ def render_deepdive_tab(result, selected_mode, selected_feature, theme, meta=Non
     if target_col and target_col in dropdown_features:
         dropdown_features.remove(target_col)
     
-    print(f"[DEBUG] Render DeepDive Mode: {selected_mode}, Feature Count: {len(dropdown_features)}")
+    logger.debug("Render DeepDive Mode=%s Feature Count=%d", selected_mode, len(dropdown_features))
     
     # Feature Selector
     selector_card = html.Div([
@@ -588,7 +590,7 @@ def handle_file_upload(contents, filename):
 )
 def submit_job(n_clicks, meta, target_col, task_type, max_bins, top_k, use_aicc):
     if not n_clicks or not meta: return dash.no_update, dash.no_update, dash.no_update, dash.no_update
-    print(f"[DEBUG] Submit Job Clicked. Target: {target_col}, Task: {task_type}")
+    logger.debug("Submit Job clicked target=%s task=%s", target_col, task_type)
     try:
         # Default params
         if not target_col or target_col == "":
@@ -612,7 +614,7 @@ def submit_job(n_clicks, meta, target_col, task_type, max_bins, top_k, use_aicc)
         )
         
         job_id = client.submit_job(meta['dataset_id'], params)
-        print(f"[DEBUG] Job Submitted: {job_id}")
+        logger.debug("Job Submitted: %s", job_id)
         msg = dbc.Alert([
             dbc.Spinner(size="sm", spinner_class_name="me-2"),
             f"Analysis started... (Job: {job_id[:6]})"
@@ -622,7 +624,7 @@ def submit_job(n_clicks, meta, target_col, task_type, max_bins, top_k, use_aicc)
         params_dict = {'target_col': target_col, 'task_type': task_type}
         return job_id, params_dict, False, msg
     except Exception as e:
-        print(f"[ERROR] Job Submission Failed: {e}")
+        logger.exception("Job submission failed")
         return None, None, True, dbc.Alert(f"Failed: {e}", color="danger", className="glass-card")
 
 @callback(
@@ -680,7 +682,7 @@ def download_html_report(n_clicks, result, job_id, meta, custom_filename, analys
     if not n_clicks or not result: return dash.no_update
     
     # Generate filename
-    print(f"[DEBUG] Export requested. Filename input: {custom_filename}, Theme: {theme}")
+    logger.debug("Export requested filename=%s theme=%s", custom_filename, theme)
     if custom_filename and custom_filename.strip():
         filename = custom_filename.strip()
         if not filename.lower().endswith(".html"):
@@ -734,13 +736,13 @@ def download_html_report(n_clicks, result, job_id, meta, custom_filename, analys
                                 "Task-UnknownTask",
                                 f"Task-{re.sub(r'[^A-Za-z0-9._-]+', '-', str(params_from_job.get('task_type'))).strip('-_.') or 'UnknownTask'}"
                             )
-            except Exception as fetch_err:
-                print(f"[WARN] Failed to refresh job result for export: {fetch_err}")
+            except Exception:
+                logger.warning("Failed to refresh job result for export", exc_info=True)
 
         html_io = ResultExporter.generate_html_report(report_result, meta, theme=theme)
         return dcc.send_bytes(html_io.getvalue(), filename)
-    except Exception as e:
-        print(f"[ERROR] Export failed: {e}")
+    except Exception:
+        logger.exception("Export failed")
         # In a real app, we might want to show a notification to the user
         return dash.no_update
 
@@ -768,7 +770,7 @@ def render_content(active_tab, result, deepdive_state, theme, meta, params): # t
             return render_deepdive_tab(result, mode, feat, theme, meta, target_col, interaction)
         return html.Div("Tab Not Found")
     except Exception as e:
-        import traceback; traceback.print_exc()
+        logger.exception("Render error")
         return dbc.Alert(f"Render Error: {e}", color="danger")
 
 @callback(
@@ -782,7 +784,7 @@ def render_content(active_tab, result, deepdive_state, theme, meta, params): # t
 def update_deepdive_state(mode_vals, feat_vals, int_vals, current_state):
     ctx_id = ctx.triggered_id
     if not ctx_id: return dash.no_update
-    print(f"[DEBUG] Update DeepDive State: Trigger={ctx_id}, ModeVals={mode_vals}")
+    logger.debug("Update DeepDive State Trigger=%s ModeVals=%s", ctx_id, mode_vals)
     
     new_state = current_state.copy()
     # Handle dictionary ID pattern matching
