@@ -58,7 +58,12 @@ class ResultExporter:
                     color=delta_col,
                     color_continuous_scale="Bluyl"
                 )
-                fig_fi.update_layout(height=max(600, len(df_top_chart) * 20))
+                fig_fi.update_layout(
+                    height=max(600, len(df_top_chart) * 20),
+                    margin=dict(l=20, r=20, t=40, b=20),
+                    paper_bgcolor='rgba(0,0,0,0)',
+                    plot_bgcolor='rgba(0,0,0,0)'
+                )
 
         # Interactions Heatmap (Global)
         fig_heat = go.Figure()
@@ -75,6 +80,11 @@ class ResultExporter:
                     df_ii, x=f1, y=f2, z=gain, histfunc="sum",
                     title="Global Interaction Network",
                     color_continuous_scale="Viridis"
+                )
+                fig_heat.update_layout(
+                     margin=dict(l=20, r=20, t=40, b=20),
+                     paper_bgcolor='rgba(0,0,0,0)',
+                     plot_bgcolor='rgba(0,0,0,0)'
                 )
         
         # 3. Feature Details (All Features)
@@ -107,9 +117,11 @@ class ResultExporter:
                 title=f"Detail: {feat}",
                 yaxis=dict(title="Count"),
                 yaxis2=dict(title="Target", overlaying='y', side='right', showgrid=False),
-                legend=dict(orientation='h', y=1.1),
+                legend=dict(orientation='h', y=1.15, x=1, xanchor='right'),
                 height=400,
-                margin=dict(l=20, r=20, t=40, b=20)
+                margin=dict(l=40, r=40, t=60, b=40),
+                paper_bgcolor='rgba(0,0,0,0)',
+                plot_bgcolor='rgba(0,0,0,0)'
             )
             feature_plots[feat] = pio.to_html(sub_fig, full_html=False, include_plotlyjs=False)
             
@@ -120,6 +132,7 @@ class ResultExporter:
 
         # 4. Interaction Details (All Pairs)
         interaction_charts = {} # pair_key -> html_div
+        interaction_stats = {} # pair_key -> html_table_str
         interaction_details = result.get('interaction_details', {})
         all_interactions = sorted(list(interaction_details.keys()))
         
@@ -132,9 +145,18 @@ class ResultExporter:
                 ))
                 fig_int.update_layout(
                     title=f"Interaction: {det['feature_1']} vs {det['feature_2']}",
-                    height=500
+                    height=500,
+                    margin=dict(l=40, r=40, t=50, b=40),
+                    paper_bgcolor='rgba(0,0,0,0)',
+                    plot_bgcolor='rgba(0,0,0,0)'
                 )
                 interaction_charts[pair_key] = pio.to_html(fig_int, full_html=False, include_plotlyjs=False)
+                
+                # Table for Interaction (Target Mean Matrix) or similar summary
+                # Flatten matrix for table representation or keep as wide format?
+                # Let's show as a wide table to mimic the heatmap
+                df_int_table = pd.DataFrame(det['means'], index=det['bin_labels_1'], columns=det['bin_labels_2'])
+                interaction_stats[pair_key] = df_int_table.to_html(classes="table table-sm table-bordered table-hover", float_format="%.4f")
 
         # HTML Assembly
         html_content = f"""
@@ -144,19 +166,64 @@ class ResultExporter:
             <title>AdvancedCATDAP Report</title>
             <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
             <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+            <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
             <style>
-                body {{ background-color: #f8f9fa; color: #333; }}
-                .card {{ margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); border: none; }}
-                .header {{ background: linear-gradient(135deg, #0d6efd 0%, #0dcaf0 100%); color: white; padding: 20px; margin-bottom: 30px; border-radius: 0 0 20px 20px; }}
+                :root {{
+                    --bg-color: #f8f9fa;
+                    --text-color: #333;
+                    --card-bg: #fff;
+                    --card-border: none;
+                    --header-bg: linear-gradient(135deg, #0d6efd 0%, #0dcaf0 100%);
+                    --table-color: #333;
+                }}
+                
+                body.dark-mode {{
+                    --bg-color: #121212;
+                    --text-color: #e0e0e0;
+                    --card-bg: #1e1e1e;
+                    --card-border: 1px solid #333;
+                    --header-bg: linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%);
+                    --table-color: #e0e0e0;
+                }}
+                
+                body {{ background-color: var(--bg-color); color: var(--text-color); transition: background-color 0.3s, color 0.3s; }}
+                .card {{ background-color: var(--card-bg); color: var(--text-color); margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); border: var(--card-border); }}
+                .header {{ background: var(--header-bg); color: white; padding: 20px; margin-bottom: 30px; border-radius: 0 0 20px 20px; position: relative; }}
                 .nav-pills .nav-link.active {{ background-color: #0d6efd; }}
                 .plot-container {{ width: 100%; }}
                 .hidden {{ display: none; }}
+                
+                table {{ color: var(--table-color) !important; }}
+                .table-hover tbody tr:hover td {{ color: var(--text-color); background-color: rgba(0,0,0,0.05); }}
+                body.dark-mode .table-hover tbody tr:hover td {{ background-color: rgba(255,255,255,0.1); }}
+                
+                /* Select High Contrast */
+                select.form-select {{
+                    background-color: var(--card-bg);
+                    color: var(--text-color);
+                    border-color: var(--text-color);
+                }}
+                
+                #theme-toggle {{
+                    position: absolute;
+                    top: 20px;
+                    right: 20px;
+                    background: transparent;
+                    border: 1px solid white;
+                    color: white;
+                    border-radius: 20px;
+                    padding: 5px 15px;
+                    cursor: pointer;
+                }}
             </style>
         </head>
         <body>
             <div class="header text-center">
                 <h1>Analysis Report</h1>
                 <p>Dataset ID: {meta.get('dataset_id', 'N/A') if meta else 'N/A'} | Target: {meta.get('target', 'N/A')}</p>
+                <button id="theme-toggle" onclick="toggleTheme()">
+                    <i class="bi bi-moon-stars-fill"></i> Toggle Theme
+                </button>
             </div>
             
             <div class="container-fluid px-4">
@@ -244,8 +311,20 @@ class ResultExporter:
                                 </div>
                             </div>
                             <div class="col-md-9">
-                                <div class="card p-2">
-                                     {''.join([f'<div id="intchart_{k}" class="int-chart hidden">{plot}</div>' for k, plot in interaction_charts.items()])}
+                                <div class="row">
+                                    <div class="col-lg-8">
+                                        <div class="card p-2">
+                                            {''.join([f'<div id="intchart_{k}" class="int-chart hidden">{plot}</div>' for k, plot in interaction_charts.items()])}
+                                        </div>
+                                    </div>
+                                    <div class="col-lg-4">
+                                         <div class="card p-3">
+                                            <h6 class="text-secondary">Relation Matrix (Target Mean)</h6>
+                                            <div style="overflow-x: auto;">
+                                                {''.join([f'<div id="inttable_{k}" class="int-table hidden">{tbl}</div>' for k, tbl in interaction_stats.items()])}
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -255,6 +334,21 @@ class ResultExporter:
 
             <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
             <script>
+                function toggleTheme() {{
+                    document.body.classList.toggle('dark-mode');
+                    const isDark = document.body.classList.contains('dark-mode');
+                    
+                    const textColor = isDark ? '#e0e0e0' : '#333';
+                    const update = {{
+                        'font.color': textColor,
+                        'paper_bgcolor': 'rgba(0,0,0,0)',
+                        'plot_bgcolor': 'rgba(0,0,0,0)'
+                    }};
+                    
+                    const graphs = document.querySelectorAll('.plotly-graph-div');
+                    graphs.forEach(el => Plotly.relayout(el, update));
+                }}
+
                 // Feature Selection Logic
                 function showFeature(featName) {{
                     // Hide all
@@ -271,18 +365,33 @@ class ResultExporter:
                     if(chart) {{
                         const plotlyDiv = chart.querySelector('.plotly-graph-div');
                         if(plotlyDiv) Plotly.Plots.resize(plotlyDiv);
+                        
+                        // Ensure Theme is applied to newly shown chart
+                        const isDark = document.body.classList.contains('dark-mode');
+                        const textColor = isDark ? '#e0e0e0' : '#333';
+                        Plotly.relayout(plotlyDiv, {{'font.color': textColor}});
                     }}
                 }}
 
                 // Interaction Logic
                 function showInteraction(pairKey) {{
                      document.querySelectorAll('.int-chart').forEach(el => el.classList.add('hidden'));
+                     document.querySelectorAll('.int-table').forEach(el => el.classList.add('hidden'));
+                     
                      const chart = document.getElementById('intchart_' + pairKey);
+                     const table = document.getElementById('inttable_' + pairKey);
+                     
                      if(chart) chart.classList.remove('hidden');
+                     if(table) table.classList.remove('hidden');
                      
                      if(chart) {{
                         const plotlyDiv = chart.querySelector('.plotly-graph-div');
                         if(plotlyDiv) Plotly.Plots.resize(plotlyDiv);
+                        
+                        // Ensure Theme is applied
+                        const isDark = document.body.classList.contains('dark-mode');
+                        const textColor = isDark ? '#e0e0e0' : '#333';
+                        Plotly.relayout(plotlyDiv, {{'font.color': textColor}});
                     }}
                 }}
 

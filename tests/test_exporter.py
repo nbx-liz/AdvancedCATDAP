@@ -38,5 +38,7 @@ def test_html_export_interactive():
     assert "Analysis Report" in content
     assert "ColA" in content
     assert "plotly" in content 
-    assert "function showFeature(featName)" in content # Check for JS logic
+    assert "function showFeature(featName)" in content 
+    assert "function toggleTheme()" in content # Theme toggle check
+    assert "inttable_" in content # Interaction table check
     assert "ColA - ColB" in content
