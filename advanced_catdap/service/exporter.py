@@ -225,8 +225,9 @@ class ResultExporter:
                 .hidden {{ display: none; }}
                 
                 /* Table Styling - Glassmorphism Match */
-                table {{ color: var(--table-color) !important; background-color: var(--table-bg) !important; }}
-                .table {{ --bs-table-bg: var(--table-bg); --bs-table-color: var(--table-color); --bs-table-border-color: var(--table-border-color); }}
+                table {{ color: #e0e0e0 !important; background-color: var(--table-bg) !important; }}
+                .table {{ --bs-table-bg: var(--table-bg); --bs-table-color: #e0e0e0; --bs-table-border-color: var(--table-border-color); }}
+                .table tbody td {{ color: #e0e0e0 !important; }} /* Force cell text color */
                 .table thead th {{ 
                     background-color: var(--table-head-bg) !important; 
                     color: var(--table-head-color) !important; 

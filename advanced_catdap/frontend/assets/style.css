@@ -250,6 +250,30 @@ option {
     color: #fff;
 }
 
+/* Force Input Colors */
+input.Select-input,
+input {
+    background-color: transparent !important;
+    color: white !important;
+}
+
+.Select-control input {
+    color: white !important;
+    box-shadow: none !important;
+    caret-color: white !important;
+}
+
+/* Specific target for generic html inputs */
+#report-filename-input {
+    background-color: #222 !important;
+    color: white !important;
+    border: 1px solid #444;
+}
+
+#report-filename-input::placeholder {
+    color: #888 !important;
+}
+
 /* Sliders */
 .rc-slider-mark-text {
     color: #b0b0b0 !important;

@@ -137,15 +137,18 @@ def render_dashboard_tab(result, meta, theme=None): # theme arg kept for compati
         delta_col = col_map.get('delta_score', col_map.get('deltascore', 'Delta_Score'))
         
         if feat_col in df_fi.columns and delta_col in df_fi.columns:
+            print("[DEBUG] df_fi columns:", df_fi.columns)
+            print("[DEBUG] df_fi head:\n", df_fi[[feat_col, delta_col]].head())
             df_top = df_fi.nlargest(15, delta_col).sort_values(delta_col, ascending=True)
             fig_fi = px.bar(
                 df_top, x=delta_col, y=feat_col, orientation='h',
                 title="Top Features by Impact (Delta AIC)",
                 color=delta_col,
-                color_continuous_scale="Bluyl"
+                color_continuous_scale="Bluyl",
+                text_auto='.4s' # Show value with SI prefix (e.g. 4.2k)
             )
-            fig_fi.update_traces(marker_line_width=0)
-            fig_fi.update_layout(coloraxis_showscale=False)
+            fig_fi.update_traces(marker_line_width=0, textposition='outside')
+            fig_fi.update_layout(coloraxis_showscale=False, margin=dict(r=50)) # Add margin for text
             apply_chart_style(fig_fi)
 
     # Interactions Heatmap
@@ -554,27 +557,31 @@ def show_export_button(result):
     Input("btn-export-html", "n_clicks"),
     State("store-analysis-result", "data"),
     State("store-dataset-meta", "data"),
+    State("report-filename-input", "value"),
     prevent_initial_call=True
 )
-def download_html_report(n_clicks, result, meta):
+def download_html_report(n_clicks, result, meta, custom_filename):
     if not n_clicks or not result: return dash.no_update
     
-    # Generate filename with timestamp
-    import datetime
-    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M")
-    original_name = "AdvancedCATDAP"
-    if meta:
-        # meta is a dict (pydantic model dump)
-        if 'filename' in meta and meta['filename']:
-             # Use the original filename stored in metadata
-             base = os.path.basename(meta['filename'])
-             original_name, _ = os.path.splitext(base)
-        elif 'dataset_id' in meta:
-            # Fallback (though dataset_id is UUID now)
-            base = os.path.basename(meta['dataset_id'])
-            original_name, _ = os.path.splitext(base)
-    
-    filename = f"{original_name}_Report_{timestamp}.html"
+    # Generate filename
+    if custom_filename and custom_filename.strip():
+        filename = custom_filename.strip()
+        if not filename.lower().endswith(".html"):
+            filename += ".html"
+    else:
+        # Default logic
+        import datetime
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M")
+        original_name = "AdvancedCATDAP"
+        if meta:
+            if 'filename' in meta and meta['filename']:
+                 base = os.path.basename(meta['filename'])
+                 original_name, _ = os.path.splitext(base)
+            elif 'dataset_id' in meta:
+                base = os.path.basename(meta['dataset_id'])
+                original_name, _ = os.path.splitext(base)
+        
+        filename = f"{original_name}_Report_{timestamp}.html"
     
     html_io = ResultExporter.generate_html_report(result, meta)
     return dcc.send_bytes(html_io.getvalue(), filename)
