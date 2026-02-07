@@ -1,7 +1,7 @@
 import sys
 import json
 import argparse
-import traceback
+import logging
 from pathlib import Path
 from datetime import datetime
 
@@ -13,9 +13,11 @@ from advanced_catdap.service.dataset_manager import DatasetManager
 from advanced_catdap.service.schema import AnalysisParams
 from advanced_catdap.service.job_manager import JobManager
 
+logger = logging.getLogger(__name__)
+
 def run_worker(job_id: str, dataset_id: str, params_json: str, data_dir: str, db_path: str):
     
-    print(f"Starting job {job_id} for dataset {dataset_id}")
+    logger.info("Starting job %s for dataset %s", job_id, dataset_id)
     
     # Initialize JobManager
     job_manager = JobManager(db_path=db_path)
@@ -48,7 +50,7 @@ def run_worker(job_id: str, dataset_id: str, params_json: str, data_dir: str, db
 
         # Callback
         def progress_tracker(stage, data):
-            print(f"Progress: {stage} - {data}")
+            logger.debug("Progress: %s - %s", stage, data)
             from advanced_catdap.service.utils import sanitize_for_json
             clean_data = sanitize_for_json(data)
             job_manager.repository.update_status(job_id, "PROGRESS", progress=json.dumps({"stage": stage, "data": clean_data}))
@@ -61,12 +63,11 @@ def run_worker(job_id: str, dataset_id: str, params_json: str, data_dir: str, db
 
         # Success
         job_manager.repository.update_status(job_id, "SUCCESS", result=json.dumps(clean_result))
-        print("Job successful")
+        logger.info("Job successful")
 
     except Exception as e:
         err_msg = str(e)
-        st = traceback.format_exc()
-        print(f"Job Failed: {err_msg}\n{st}")
+        logger.exception("Job failed: %s", err_msg)
         job_manager.repository.update_status(job_id, "FAILURE", error=err_msg)
 
 if __name__ == "__main__":

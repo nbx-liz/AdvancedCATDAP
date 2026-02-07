@@ -60,6 +60,10 @@ class DatasetManager:
             )
         finally:
             con.close()
+    @staticmethod
+    def _quote_identifier(name: str) -> str:
+        """Quote SQL identifiers safely for DuckDB."""
+        return '"' + str(name).replace('"', '""') + '"'
 
     def register_dataset(self, file_path: Union[str, Path], dataset_id: Optional[str] = None, original_filename: Optional[str] = None) -> DatasetMetadata:
         """
@@ -79,17 +83,44 @@ class DatasetManager:
         try:
             # Detect format and load
             if file_path.suffix.lower() == '.csv':
-                read_cmd = f"read_csv_auto('{file_path}')"
+                rel = con.read_csv(str(file_path), header=True)
             elif file_path.suffix.lower() == '.parquet':
-                read_cmd = f"read_parquet('{file_path}')"
+                rel = con.from_parquet(str(file_path))
             else:
                  raise ValueError("Unsupported format. Only CSV and Parquet are supported.")
 
             # Copy to storage if not already there (or if converting)
-            con.execute(f"COPY (SELECT * FROM {read_cmd}) TO '{target_path}' (FORMAT PARQUET)")
+            rel.to_parquet(str(target_path))
             
             metadata = self._build_metadata_from_parquet(
                 target_path=target_path,
+            # Analyze metadata using DuckDB
+            rel = con.from_parquet(str(target_path))
+            n_rows = rel.count('*').fetchone()[0]
+            
+            # Get column types
+            dtypes = rel.types
+            col_names = rel.columns
+            
+            cols_info = []
+            for i, col in enumerate(col_names):
+                # Calculate simple stats
+                quoted = self._quote_identifier(col)
+                stats = rel.aggregate(
+                    f"COUNT({quoted}) AS valid_count, APPROX_COUNT_DISTINCT({quoted}) AS approx_unique"
+                ).fetchone()
+                
+                valid_count, unique_approx = stats
+                missing_count = n_rows - valid_count
+                
+                cols_info.append(ColumnInfo(
+                    name=col,
+                    dtype=str(dtypes[i]),
+                    missing_count=missing_count,
+                    unique_approx=unique_approx
+                ))
+
+            metadata = DatasetMetadata(
                 dataset_id=dataset_id,
                 filename=original_filename or file_path.name,
             )

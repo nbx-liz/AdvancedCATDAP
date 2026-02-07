@@ -1,5 +1,4 @@
 [run]
 omit =
-    advanced_catdap/frontend/dash_app.py
     advanced_catdap/frontend/assets/*
     */__init__.py
