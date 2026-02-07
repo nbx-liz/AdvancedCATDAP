@@ -439,7 +439,7 @@ def handle_file_upload(contents, filename):
             html.H6("Analysis Settings", className="text-info"),
             
             html.Label("Target Variable", className="small text-muted"),
-            dcc.Dropdown(
+            dbc.Select(
                 id='target-col', 
                 options=[{'label': c, 'value': c} for c in col_names], 
                 value=col_names[0] if col_names else None, 
@@ -447,7 +447,7 @@ def handle_file_upload(contents, filename):
             ),
             
             html.Label("Task Type", className="small text-muted"),
-                dcc.Dropdown(
+                dbc.Select(
                     id='task-type',
                     options=[
                         {'label': 'Auto', 'value': 'auto'},
@@ -455,7 +455,6 @@ def handle_file_upload(contents, filename):
                         {'label': 'Regression', 'value': 'regression'}
                     ],
                     value='auto',
-                    clearable=False,
                     className="mb-3"
                 ),
                 
@@ -574,6 +573,7 @@ def download_html_report(n_clicks, result, meta, custom_filename):
     if not n_clicks or not result: return dash.no_update
     
     # Generate filename
+    print(f"[DEBUG] Export requested. Filename input: {custom_filename}")
     if custom_filename and custom_filename.strip():
         filename = custom_filename.strip()
         if not filename.lower().endswith(".html"):
