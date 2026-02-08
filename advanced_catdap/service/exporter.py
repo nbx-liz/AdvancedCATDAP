@@ -227,7 +227,12 @@ class ResultExporter:
         delta = baseline - best_aic
         pct_change = ((best_aic - baseline) / baseline * 100.0) if baseline else 0.0
         n_total = max((meta.get("n_columns", 0) - 1), 0) if isinstance(meta, dict) else 0
-        selected_summary = f"{len(fi_data)} / {n_total} features" if n_total else f"{len(fi_data)} features"
+        transform_rules = result.get("transform_rules", {})
+        if isinstance(transform_rules, dict):
+            n_selected = len(transform_rules)
+        else:
+            n_selected = len(fi_data)
+        selected_summary = f"{n_selected} / {n_total} features" if n_total else f"{n_selected} features"
         final_mode = str(result.get("mode", "N/A")).upper()
         mode_title = final_mode.capitalize() if final_mode != "N/A" else "N/A"
         requested_task = result.get("requested_task_type", result.get("task_type", "auto"))

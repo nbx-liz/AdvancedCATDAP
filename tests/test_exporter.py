@@ -100,6 +100,43 @@ def test_html_export_prefers_requested_task_type_for_mode_hint():
     assert "Classification (Auto)" in content
 
 
+def test_html_export_selected_features_uses_transform_rules():
+    result = {
+        "mode": "CLASSIFICATION",
+        "baseline_score": 100.0,
+        "feature_importances": [
+            {"Feature": f"F{i}", "Delta_Score": 1.0, "Score": 90.0} for i in range(12)
+        ],
+        "transform_rules": {"F1": {}, "F2": {}},
+        "interaction_importances": [],
+        "feature_details": {},
+        "interaction_details": {},
+    }
+    meta = {"n_columns": 13}
+    html_io = ResultExporter.generate_html_report(result, meta=meta)
+    content = html_io.getvalue().decode("utf-8")
+    assert "2 / 12 features" in content
+
+
+def test_html_export_selected_features_fallback_to_feature_importances():
+    result = {
+        "mode": "CLASSIFICATION",
+        "baseline_score": 100.0,
+        "feature_importances": [
+            {"Feature": "A", "Delta_Score": 1.0, "Score": 90.0},
+            {"Feature": "B", "Delta_Score": 0.5, "Score": 95.0},
+        ],
+        "transform_rules": ["legacy-non-dict-shape"],
+        "interaction_importances": [],
+        "feature_details": {},
+        "interaction_details": {},
+    }
+    meta = {"n_columns": 5}
+    html_io = ResultExporter.generate_html_report(result, meta=meta)
+    content = html_io.getvalue().decode("utf-8")
+    assert "2 / 4 features" in content
+
+
 def test_build_interaction_matrix_sums_gain():
     df = ResultExporter.normalize_interaction_importances([
         {"Feature_1": "A", "Feature_2": "B", "Gain": 2.0},

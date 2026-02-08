@@ -65,10 +65,10 @@ df_transformed = model.transform(df)
 
 AdvancedCATDAP includes a web-based GUI for easy interaction.
 
-### Launching the Web App
+### Launching the Browser App
 
 ```bash
-# Using uv (Recommended)
+# Browser mode (works for local and server/cloud use)
 uv run scripts/launch_gui.py
 
 # Or manually
@@ -78,7 +78,7 @@ uvicorn advanced_catdap.service.api:app --reload --port 8000
 python advanced_catdap/frontend/dash_app.py
 ```
 
-### Windows Desktop App (New)
+### Windows Desktop App
 
 Build and run as a standalone Windows executable:
 
@@ -97,6 +97,12 @@ The desktop app opens in a native window (not browser) and includes:
 - FastAPI backend (auto-started)
 - Dash frontend (auto-started)
 - Clean shutdown on window close
+
+Desktop mode can also be launched from source:
+
+```powershell
+uv run scripts/launch_desktop.py
+```
 
 ---
 
@@ -117,15 +123,22 @@ AdvancedCATDAP/
 |   |-- frontend/                       # Dash UI
 |   |   |-- dash_app.py                 # Main Dash app
 |   |   `-- api_client.py               # API client for frontend
+|   |-- runtime/                        # Runtime entrypoints
+|   |   |-- cli.py                      # Unified desktop/web/worker CLI entrypoint
+|   |   |-- gui.py                      # Desktop/Web startup flow
+|   |   |-- worker.py                   # Worker startup flow
+|   |   |-- desktop_export.py           # Desktop save-dialog bridge
+|   |   `-- process.py                  # Port/find/wait utilities
 |   `-- service/                        # Backend services
 |       |-- api.py                      # FastAPI endpoints
 |       |-- analyzer.py                 # Analysis orchestration
 |       |-- job_manager.py              # Background job management
 |       |-- dataset_manager.py          # Dataset storage
 |       `-- schema.py                   # Pydantic models
-|-- scripts/                            # Utility scripts
-|   |-- launch_gui.py                   # Launch web GUI
-|   |-- windows_main.py                 # Windows desktop entry point
+|-- scripts/                            # Thin wrappers / utility scripts
+|   |-- launch_gui.py                   # Thin wrapper to runtime CLI (web mode)
+|   |-- launch_desktop.py               # Thin wrapper to runtime CLI (desktop mode)
+|   |-- windows_main.py                 # Thin wrapper entry for EXE/runtime CLI
 |   `-- generate_demo_data.py           # Generate sample data
 |-- examples/                           # Example scripts
 |-- tests/                              # Test suite

@@ -1,4 +1,3 @@
-import time
 from pathlib import Path
 
 import pandas as pd
@@ -6,22 +5,7 @@ import pytest
 
 from advanced_catdap.service.job_manager import JobManager
 from advanced_catdap.service.schema import AnalysisParams
-
-
-def _wait_for_terminal_status(jm: JobManager, job_id: str, timeout_sec: int = 20, interval_sec: float = 0.5):
-    seen = set()
-    deadline = time.time() + timeout_sec
-    last = None
-    while time.time() < deadline:
-        status = jm.get_job_status(job_id)
-        last = status
-        st = status.get("status")
-        if st:
-            seen.add(st)
-        if st in {"SUCCESS", "FAILURE"}:
-            return status, seen
-        time.sleep(interval_sec)
-    return last, seen
+from tests.integration_helpers import wait_for_terminal_status
 
 
 @pytest.mark.integration
@@ -46,7 +30,7 @@ def test_sqlite_jobs_integration(tmp_path: Path) -> None:
     immediate = jm.get_job_status(job_id)
     assert immediate["status"] in {"PENDING", "RUNNING", "PROGRESS"}
 
-    final_status, seen = _wait_for_terminal_status(jm, job_id, timeout_sec=20, interval_sec=0.5)
+    final_status, seen = wait_for_terminal_status(jm, job_id, timeout_s=20, interval_s=0.5)
 
     if final_status is None:
         log_file = tmp_path / "jobs_logs" / f"{job_id}.log"

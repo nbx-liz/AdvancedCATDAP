@@ -1,47 +1,26 @@
 # -*- mode: python ; coding: utf-8 -*-
-from PyInstaller.utils.hooks import collect_all, copy_metadata
-import sys
 import os
 
 block_cipher = None
 
-# AdvancedCATDAP source path
-pkg_path = os.path.abspath("advanced_catdap")
-
 datas = [
-    # Include the entire package source to ensure re-imports works if needed
-    # But usually PyInstaller collects code. We need non-code assets.
-    # Frontend dash_app.py is bundled for runtime imports/resources.
-    ('advanced_catdap', 'advanced_catdap'), # Bundle entire package as data if needed, or rely on analysis.
-    ('advanced_catdap/frontend/dash_app.py', 'advanced_catdap/frontend'),
+    # Runtime static assets for Dash UI.
+    ("advanced_catdap/frontend/assets", "advanced_catdap/frontend/assets"),
 ]
 
 binaries = []
 hiddenimports = [
-    'uvicorn.logging', 'uvicorn.loops', 'uvicorn.loops.auto', 'uvicorn.protocols', 
-    'uvicorn.protocols.http', 'uvicorn.protocols.http.auto', 'uvicorn.protocols.websockets', 
-    'uvicorn.protocols.websockets.auto', 'uvicorn.lifespan', 'uvicorn.lifespan.on',
-    'fastapi', 'streamlit', 'pandas', 'sklearn', 'plotly', 'scipy',
-    'httpx', 'tqdm', 'filelock', 'regex', 'joblib', 'webview', 'clr', 'System.Windows.Forms'
+    # Uvicorn dynamic import paths used by FastAPI startup.
+    "uvicorn.loops.auto",
+    "uvicorn.protocols.http.auto",
+    "uvicorn.protocols.websockets.auto",
+    "uvicorn.lifespan.on",
 ]
 
-# Collect Streamlit
-st_datas, st_binaries, st_hiddenimports = collect_all('streamlit')
-datas += st_datas
-binaries += st_binaries
-hiddenimports += st_hiddenimports
-
-# Metadata
-datas += copy_metadata('streamlit')
-datas += copy_metadata('joblib')
-datas += copy_metadata('requests')
-datas += copy_metadata('packaging')
-datas += copy_metadata('numpy')
-datas += copy_metadata('scipy')
-
 a = Analysis(
-    ['scripts/windows_main.py'],
-    pathex=[os.path.abspath('.')],
+    # Wrapper entrypoint; real runtime logic lives in advanced_catdap/runtime.
+    ["scripts/windows_main.py"],
+    pathex=[os.path.abspath(".")],
     binaries=binaries,
     datas=datas,
     hiddenimports=hiddenimports,
@@ -61,18 +40,18 @@ exe = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name='AdvancedCATDAP_Native312',
+    name="AdvancedCATDAP_Native312",
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
     upx=True,
-    console=False, # Set to True for debugging
+    console=False,
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon=None, # Add icon later if available
+    icon=None,
 )
 
 coll = COLLECT(
@@ -82,5 +61,5 @@ coll = COLLECT(
     strip=False,
     upx=True,
     upx_exclude=[],
-    name='AdvancedCATDAP_Native312',
+    name="AdvancedCATDAP_Native312",
 )
