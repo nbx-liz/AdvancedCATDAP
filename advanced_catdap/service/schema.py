@@ -65,6 +65,7 @@ class AnalysisResult(BaseModel):
     job_id: Optional[str] = None
     dataset_id: Optional[str] = None
     mode: str = "unknown"
+    task_type: Optional[str] = None
     n_rows_used: int = 0
     sampled: bool = False
     baseline_score: float = 0.0

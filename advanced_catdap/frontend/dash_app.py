@@ -126,6 +126,31 @@ def create_sidebar_content():
         ], id='sidebar-export-area', className="sidebar-export-area mt-3")
     ], className="sidebar-stack")
 
+
+def build_interaction_empty_reason(result, params=None, meta=None):
+    ii_data = result.get("interaction_importances", []) if isinstance(result, dict) else []
+    interaction_details = result.get("interaction_details", {}) if isinstance(result, dict) else {}
+    mode = str((result or {}).get("mode", "")).strip().lower()
+    requested_task = str((params or {}).get("task_type", "auto")).strip().lower()
+    checked_pairs = (result or {}).get("checked_interaction_pairs")
+
+    lines = [
+        "No interaction pair passed the gain threshold.",
+    ]
+    if requested_task == "auto" and mode:
+        lines.append(f"Auto task detection selected: {mode.capitalize()}.")
+    lines.append("interaction_importances and interaction_details are empty.")
+    if isinstance(checked_pairs, int):
+        lines.append(f"Checked pairs: {checked_pairs}")
+    lines.append("Tip: If target is continuous, set Task Type=Regression and rerun.")
+
+    return html.Div(
+        [
+            html.Div("Interaction Network is not available", className="kpi-label mb-2"),
+            html.Ul([html.Li(line) for line in lines], className="small text-muted mb-0"),
+        ]
+    )
+
 def render_dashboard_tab(result, meta, params=None, theme=None): # theme arg kept for compatibility but unused
     if not result:
         return dbc.Alert([html.I(className="bi bi-info-circle me-2"), "Please upload data and run analysis."], color="dark", className="glass-card border-info")
@@ -160,7 +185,12 @@ def render_dashboard_tab(result, meta, params=None, theme=None): # theme arg kep
         delta_text = f"Delta {delta:,.0f} ({pct_change:.1f}%)"
     else:
         delta_text = "Delta N/A"
-    n_selected = len(fi_data)
+    has_transform_rules = isinstance(result, dict) and "transform_rules" in result
+    transform_rules = result.get("transform_rules") if has_transform_rules else None
+    if isinstance(transform_rules, dict):
+        n_selected = len(transform_rules)
+    else:
+        n_selected = len(fi_data)
     n_total = max((meta['n_columns'] - 1), 0) if meta else 0
     selected_summary = f"{n_selected} / {n_total} features" if n_total else f"{n_selected} features"
 
@@ -251,11 +281,18 @@ def render_dashboard_tab(result, meta, params=None, theme=None): # theme arg kep
         ))
         fig_heat.update_layout(title="Interaction Network")
         apply_chart_style(fig_heat)
+        interaction_panel = dcc.Graph(figure=fig_heat)
+    else:
+        interaction_panel = dbc.Alert(
+            build_interaction_empty_reason(result, params=params, meta=meta),
+            color="secondary",
+            className="mb-0",
+        )
 
     # Charts Layout
     charts_row = dbc.Row([
         dbc.Col(html.Div(dcc.Graph(figure=fig_fi), className="glass-card"), md=12, lg=6),
-        dbc.Col(html.Div(dcc.Graph(figure=fig_heat), className="glass-card"), md=12, lg=6)
+        dbc.Col(html.Div(interaction_panel, className="glass-card"), md=12, lg=6)
     ])
 
     return html.Div([kpi_row, charts_row])

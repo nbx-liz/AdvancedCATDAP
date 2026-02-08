@@ -164,6 +164,7 @@ cython_debug/
 *.parquet
 data/
 demo_data.csv
+analysis/
 
 # Editor
 .vscode/

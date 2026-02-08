@@ -73,10 +73,13 @@ class AnalyzerService:
             self.logger.error(f"Analysis failed: {e}")
             raise e
 
+        detected_mode = str(getattr(model, 'mode', 'unknown'))
+
         # Construct Result
         result = AnalysisResult(
             target_col=params.target_col,
-            mode=getattr(model, 'mode', 'unknown'),
+            mode=detected_mode,
+            task_type=detected_mode.lower(),
             n_rows_used=len(dataset),
             sampled=params.sample_size is not None and len(dataset) <= params.sample_size,
             baseline_score=getattr(model, 'baseline_score', 0.0), # Core uses baseline_score (no underscore)

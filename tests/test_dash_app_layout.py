@@ -77,6 +77,33 @@ def test_render_dashboard_tab_with_data():
     assert "Interaction Network" in str(view)
 
 
+def test_render_dashboard_tab_selected_features_uses_transform_rules():
+    result = _full_result_payload()
+    result["transform_rules"] = {"Churn": {"bins": [0, 1]}, "Target_Spend": {"bins": [0, 1]}}
+    view = dash_mod.render_dashboard_tab(result, {"n_columns": 13}, {"task_type": "auto"})
+    assert "2 / 12 features" in str(view)
+
+
+def test_render_dashboard_tab_selected_features_falls_back_to_feature_importances():
+    result = _full_result_payload()
+    result.pop("transform_rules", None)
+    view = dash_mod.render_dashboard_tab(result, {"n_columns": 4}, {"task_type": "auto"})
+    assert "3 / 3 features" in str(view)
+
+
+def test_render_dashboard_tab_shows_interaction_empty_reason():
+    result = _full_result_payload()
+    result["interaction_importances"] = []
+    result["interaction_details"] = {}
+    params = {"task_type": "auto", "use_aicc": True}
+    view = dash_mod.render_dashboard_tab(result, {"n_columns": 4}, params)
+    text = str(view)
+    assert "Interaction Network is not available" in text
+    assert "No interaction pair passed the gain threshold." in text
+    assert "Auto task detection selected: Classification." in text
+    assert "interaction_importances and interaction_details are empty." in text
+
+
 def test_render_dashboard_tab_handles_infinity_baseline():
     result = _full_result_payload()
     result["baseline_score"] = "Infinity"
