@@ -84,6 +84,22 @@ def test_html_export_uses_safe_dom_ids():
     assert "chart_feat_" in content
 
 
+def test_html_export_prefers_requested_task_type_for_mode_hint():
+    result = {
+        "mode": "CLASSIFICATION",
+        "task_type": "classification",
+        "requested_task_type": "auto",
+        "baseline_score": 100.0,
+        "feature_importances": [{"Feature": "A", "Delta_Score": 10.0, "Score": 90.0}],
+        "interaction_importances": [],
+        "feature_details": {},
+        "interaction_details": {},
+    }
+    html_io = ResultExporter.generate_html_report(result, meta={})
+    content = html_io.getvalue().decode("utf-8")
+    assert "Classification (Auto)" in content
+
+
 def test_build_interaction_matrix_sums_gain():
     df = ResultExporter.normalize_interaction_importances([
         {"Feature_1": "A", "Feature_2": "B", "Gain": 2.0},
@@ -204,6 +220,33 @@ def test_html_export_interaction_details_without_counts_does_not_crash():
     content = html_io.getvalue().decode("utf-8")
     assert "Interaction: A vs B" in content
     assert "Sample Count Matrix" in content
+
+
+def test_html_export_interaction_details_with_dominant_class_matrix():
+    result = {
+        "mode": "CLASSIFICATION",
+        "baseline_score": 10.0,
+        "feature_importances": [{"Feature": "A", "Delta_Score": 1.0, "Score": 9.0}],
+        "interaction_importances": [],
+        "feature_details": {},
+        "interaction_details": {
+            "A|B": {
+                "feature_1": "A",
+                "feature_2": "B",
+                "means": [[0.8, 0.3], [0.6, 0.9]],
+                "counts": [[10, 20], [30, 40]],
+                "bin_labels_1": ["L", "H"],
+                "bin_labels_2": ["L", "H"],
+                "metric_name": "Class Purity",
+                "dominant_labels": [["Male", "Female"], ["Female", "Female"]],
+            }
+        },
+    }
+    html_io = ResultExporter.generate_html_report(result, meta={})
+    content = html_io.getvalue().decode("utf-8")
+    assert "Class Purity Matrix" in content
+    assert "Dominant Class Matrix" in content
+    assert "Male" in content
 
 
 def test_resolve_column_case_insensitive_and_missing():

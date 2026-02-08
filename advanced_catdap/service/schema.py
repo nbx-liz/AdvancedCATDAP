@@ -60,6 +60,8 @@ class InteractionDetail(BaseModel):
     bin_labels_2: List[str]
     counts: List[List[int]] # 2D matrix
     means: List[List[float]] # 2D matrix
+    metric_name: Optional[str] = None
+    dominant_labels: Optional[List[List[str]]] = None
 
 class AnalysisResult(BaseModel):
     job_id: Optional[str] = None

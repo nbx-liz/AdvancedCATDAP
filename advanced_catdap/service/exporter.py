@@ -212,7 +212,8 @@ class ResultExporter:
         selected_summary = f"{len(fi_data)} / {n_total} features" if n_total else f"{len(fi_data)} features"
         final_mode = str(result.get("mode", "N/A")).upper()
         mode_title = final_mode.capitalize() if final_mode != "N/A" else "N/A"
-        task_hint = str(result.get("task_type", "auto")).capitalize()
+        requested_task = result.get("requested_task_type", result.get("task_type", "auto"))
+        task_hint = str(requested_task).capitalize()
         metric_name = "AICc" if bool(result.get("use_aicc", True)) else "AIC"
         estimator_name = "DecisionTreeRegressor bins" if final_mode == "REGRESSION" else "DecisionTreeClassifier bins"
         
@@ -342,9 +343,10 @@ class ResultExporter:
                     continue
                 feature_1 = det.get('feature_1') or pair_key
                 feature_2 = det.get('feature_2') or ""
+                metric_name = str(det.get("metric_name") or "Target Mean")
                 fig_int = go.Figure(data=go.Heatmap(
                     z=means, x=bin_labels_2, y=bin_labels_1,
-                    colorscale=UNIFIED_HEATMAP_COLORSCALE, colorbar=dict(title="Target")
+                    colorscale=UNIFIED_HEATMAP_COLORSCALE, colorbar=dict(title=metric_name)
                 ))
                 fig_int.update_layout(
                     title=f"Interaction: {feature_1} vs {feature_2}",
@@ -373,6 +375,7 @@ class ResultExporter:
                     counts = [[pd.NA for _ in bin_labels_2] for _ in bin_labels_1]
                 df_counts = pd.DataFrame(counts, index=bin_labels_1, columns=bin_labels_2)
                 df_means = pd.DataFrame(means, index=bin_labels_1, columns=bin_labels_2)
+                dominant_labels = det.get("dominant_labels")
                 
                 # Format means
                 df_means = df_means.map(lambda x: f"{x:.4f}" if isinstance(x, (float, int)) else x)
@@ -384,7 +387,22 @@ class ResultExporter:
                 # Two tables side-by-side
                 table_counts_html = df_counts_disp.to_html(classes="table table-glass table-sm table-bordered table-hover", index=False)
                 table_means_html = df_means_disp.to_html(classes="table table-glass table-sm table-bordered table-hover", index=False)
-                
+
+                dominant_html = ""
+                if dominant_labels:
+                    df_dominant = pd.DataFrame(dominant_labels, index=bin_labels_1, columns=bin_labels_2)
+                    df_dominant_disp = df_dominant.reset_index().rename(columns={'index': feature_1})
+                    table_dominant_html = df_dominant_disp.to_html(
+                        classes="table table-glass table-sm table-bordered table-hover",
+                        index=False,
+                    )
+                    dominant_html = f"""
+                    <div class="col-md-12">
+                        <h6 class="text-secondary mt-3">Dominant Class Matrix</h6>
+                        <div class="table-responsive">{table_dominant_html}</div>
+                    </div>
+                    """
+
                 # Combine into grid
                 combined_html = f"""
                 <div class="row">
@@ -393,9 +411,10 @@ class ResultExporter:
                         <div class="table-responsive">{table_counts_html}</div>
                     </div>
                     <div class="col-md-6">
-                        <h6 class="text-secondary mt-3">Target Mean Matrix</h6>
+                        <h6 class="text-secondary mt-3">{metric_name} Matrix</h6>
                         <div class="table-responsive">{table_means_html}</div>
                     </div>
+                    {dominant_html}
                 </div>
                 """
                 interaction_stats[pair_key] = combined_html

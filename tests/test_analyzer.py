@@ -163,3 +163,40 @@ def test_analyzer_allows_non_id_like_string_target():
         result = service.run_analysis(df, params)
         assert result.mode == "classification"
 
+
+def test_analyzer_string_classification_interaction_uses_class_purity():
+    with patch("advanced_catdap.service.analyzer.AdvancedCATDAP") as mock_core_cls:
+        mock_instance = MagicMock()
+        mock_core_cls.return_value = mock_instance
+
+        mock_instance.mode = "classification"
+        mock_instance.baseline_score = 100.0
+        mock_instance.transform_rules_ = {}
+        mock_instance.feature_importances_ = pd.DataFrame([
+            {"Feature": "cat1", "Score": 50, "Delta_Score": 10, "Actual_Bins": 2, "Method": "category"},
+            {"Feature": "cat2", "Score": 40, "Delta_Score": 5, "Actual_Bins": 3, "Method": "category"},
+        ])
+        mock_instance.interaction_importances_ = pd.DataFrame([
+            {"Feature_1": "cat1", "Feature_2": "cat2", "Pair_Score": 80, "Gain": 15}
+        ])
+        mock_instance.feature_details_ = None
+
+        service = AnalyzerService()
+        df = pd.DataFrame(
+            {
+                "target": ["Male", "Female", "Female", "Male", "Female", "Male"] * 10,
+                "cat1": ["A", "B", "A", "B", "A", "B"] * 10,
+                "cat2": ["X", "X", "Y", "Y", "Z", "Z"] * 10,
+            }
+        )
+        params = AnalysisParams(target_col="target")
+
+        result = service.run_analysis(df, params)
+
+        det = result.interaction_details["cat1|cat2"]
+        assert det.metric_name == "Class Purity"
+        assert det.dominant_labels is not None
+        for row in det.means:
+            for v in row:
+                assert 0.0 <= float(v) <= 1.0
+
