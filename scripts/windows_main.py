@@ -7,6 +7,7 @@ import os
 import threading
 import time
 import socket
+from pathlib import Path
 import webview
 
 # Add project root to path
@@ -34,7 +35,10 @@ def wait_for_server(port, timeout=30):
 def run_api_server(port):
     """Run API server"""
     import uvicorn
-    from advanced_catdap.service.api import app as api_app
+    from advanced_catdap.service import api as api_module
+
+    api_module.configure_desktop_export_hook(DesktopExportBridge().save_html_report)
+    api_app = api_module.app
     uvicorn.run(
         api_app,
         host="127.0.0.1",
@@ -50,8 +54,35 @@ def run_dash_server(port, api_port):
     app.run(debug=False, port=port, use_reloader=False)
 
 
+class DesktopExportBridge:
+    """Bridge that shows native save dialog and writes exported HTML."""
+
+    def save_html_report(self, filename: str, payload: bytes) -> str | None:
+        default_name = filename or "AdvancedCATDAP_Report.html"
+        if not default_name.lower().endswith(".html"):
+            default_name += ".html"
+
+        if not webview.windows:
+            return None
+
+        save_dialog = getattr(webview, "SAVE_DIALOG", 1)
+        path = webview.windows[0].create_file_dialog(
+            save_dialog,
+            save_filename=default_name,
+            file_types=("HTML files (*.html)", "All files (*.*)"),
+        )
+        if not path:
+            return None
+
+        selected = path[0] if isinstance(path, (list, tuple)) else path
+        output_path = Path(str(selected))
+        output_path.write_bytes(payload)
+        return str(output_path)
+
+
 if __name__ == "__main__":
     print("Starting AdvancedCATDAP (Dash version)...")
+    os.environ["CATDAP_DESKTOP_MODE"] = "1"
     
     # Find free ports
     api_port = find_free_port()

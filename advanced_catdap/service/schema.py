@@ -74,3 +74,16 @@ class AnalysisResult(BaseModel):
     feature_details: Dict[str, FeatureDetail] = {}
     interaction_details: Dict[str, InteractionDetail] = {} # Key: "Feat1|Feat2"
     artifacts: Dict[str, str] = {}
+
+
+class ExportHtmlRequest(BaseModel):
+    result: Dict[str, Any]
+    meta: Optional[Dict[str, Any]] = None
+    filename: str
+    theme: str = "dark"
+
+
+class ExportHtmlResponse(BaseModel):
+    saved: bool
+    path: Optional[str] = None
+    reason: Optional[str] = None

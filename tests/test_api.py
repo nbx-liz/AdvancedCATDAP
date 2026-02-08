@@ -119,3 +119,72 @@ def test_resolve_cors_settings_from_env(monkeypatch):
     settings = api_module.resolve_cors_settings()
     assert settings["allow_origins"] == ["https://example.com", "https://sub.example.com"]
     assert settings["allow_credentials"] is True
+
+
+def test_export_html_requires_desktop_mode(monkeypatch):
+    monkeypatch.delenv("CATDAP_DESKTOP_MODE", raising=False)
+    api_module.configure_desktop_export_hook(lambda _name, _payload: "C:/tmp/out.html")
+    try:
+        res = client.post(
+            "/export/html",
+            json={
+                "result": {"feature_importances": []},
+                "meta": {"filename": "input.csv"},
+                "filename": "report.html",
+                "theme": "dark",
+            },
+        )
+        assert res.status_code == 403
+    finally:
+        api_module.configure_desktop_export_hook(None)
+
+
+def test_export_html_saves_with_desktop_hook(monkeypatch):
+    monkeypatch.setenv("CATDAP_DESKTOP_MODE", "1")
+    captured = {}
+
+    def _save(name, payload):
+        captured["name"] = name
+        captured["size"] = len(payload)
+        return "C:/exports/report.html"
+
+    api_module.configure_desktop_export_hook(_save)
+    try:
+        res = client.post(
+            "/export/html",
+            json={
+                "result": {"feature_importances": []},
+                "meta": {"filename": "input.csv"},
+                "filename": "report.html",
+                "theme": "dark",
+            },
+        )
+        assert res.status_code == 200
+        body = res.json()
+        assert body["saved"] is True
+        assert body["path"] == "C:/exports/report.html"
+        assert captured["name"] == "report.html"
+        assert captured["size"] > 0
+    finally:
+        api_module.configure_desktop_export_hook(None)
+
+
+def test_export_html_cancelled_returns_saved_false(monkeypatch):
+    monkeypatch.setenv("CATDAP_DESKTOP_MODE", "1")
+    api_module.configure_desktop_export_hook(lambda _name, _payload: None)
+    try:
+        res = client.post(
+            "/export/html",
+            json={
+                "result": {"feature_importances": []},
+                "meta": {"filename": "input.csv"},
+                "filename": "report.html",
+                "theme": "dark",
+            },
+        )
+        assert res.status_code == 200
+        body = res.json()
+        assert body["saved"] is False
+        assert body["reason"] == "cancelled"
+    finally:
+        api_module.configure_desktop_export_hook(None)

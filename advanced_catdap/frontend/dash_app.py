@@ -688,6 +688,7 @@ def poll_job(n, job_id):
 
 @callback(
     Output("download-html-report", "data"),
+    Output("global-status-message", "children", allow_duplicate=True),
     Input("btn-export-html", "n_clicks"),
     State("store-analysis-result", "data"),
     State("store-job-id", "data"),
@@ -698,7 +699,8 @@ def poll_job(n, job_id):
     prevent_initial_call=True
 )
 def download_html_report(n_clicks, result, job_id, meta, custom_filename, analysis_params, theme):
-    if not n_clicks or not result: return dash.no_update
+    if not n_clicks or not result:
+        return dash.no_update, dash.no_update
     
     # Generate filename
     logger.debug("Export requested filename=%s theme=%s", custom_filename, theme)
@@ -758,12 +760,45 @@ def download_html_report(n_clicks, result, job_id, meta, custom_filename, analys
             except Exception:
                 logger.warning("Failed to refresh job result for export", exc_info=True)
 
+        desktop_mode = str(os.environ.get("CATDAP_DESKTOP_MODE", "")).strip().lower() in {
+            "1", "true", "yes", "on"
+        }
+        if desktop_mode:
+            resp = client.export_html_report(
+                result=report_result,
+                meta=meta,
+                filename=filename,
+                theme=theme or "dark",
+            )
+            if resp.get("saved"):
+                saved_path = resp.get("path", "")
+                message = dbc.Alert(
+                    f"HTML report saved: {saved_path}",
+                    color="success",
+                    className="glass-card",
+                )
+                return dash.no_update, message
+            reason = resp.get("reason") or "cancelled"
+            if reason == "cancelled":
+                message = dbc.Alert(
+                    "Export cancelled.",
+                    color="secondary",
+                    className="glass-card",
+                )
+                return dash.no_update, message
+            message = dbc.Alert(
+                f"Export not saved: {reason}",
+                color="warning",
+                className="glass-card",
+            )
+            return dash.no_update, message
+
         html_io = ResultExporter.generate_html_report(report_result, meta, theme=theme)
-        return dcc.send_bytes(html_io.getvalue(), filename)
+        return dcc.send_bytes(html_io.getvalue(), filename), dash.no_update
     except Exception:
         logger.exception("Export failed")
         # In a real app, we might want to show a notification to the user
-        return dash.no_update
+        return dash.no_update, dbc.Alert("Export failed.", color="danger", className="glass-card")
 
 # Removed Simulator Callbacks
 
