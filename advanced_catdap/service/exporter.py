@@ -171,6 +171,24 @@ class ResultExporter:
         return f"{prefix}_{index}_{cleaned}"
 
     @staticmethod
+    def _sorted_indices_by_keys(length: int, sort_keys):
+        if not sort_keys or len(sort_keys) != length:
+            return list(range(length))
+        pairs = [(i, str(sort_keys[i])) for i in range(length)]
+        pairs.sort(key=lambda x: x[1])
+        return [idx for idx, _ in pairs]
+
+    @staticmethod
+    def _reorder_2d(values, row_idx, col_idx):
+        if values is None:
+            return values
+        out = []
+        for r in row_idx:
+            row = values[r] if r < len(values) else []
+            out.append([row[c] if c < len(row) else None for c in col_idx])
+        return out
+
+    @staticmethod
     def apply_chart_style(fig, is_dark=True):
         """Apply modern dark styling to Plotly figures (Matched to GUI)"""
         template = "plotly_dark" if is_dark else "plotly"
@@ -296,12 +314,20 @@ class ResultExporter:
             
             bin_counts = detail.get('bin_counts', [])
             bin_means = detail.get('bin_means', [])
-            bin_labels = detail.get('bin_labels', [])
+            bin_labels = detail.get('bin_display_labels') or detail.get('bin_labels', [])
+            bin_sort_keys = detail.get('bin_sort_keys', [])
             if not bin_labels and detail.get('bin_edges'):
                 edges = detail['bin_edges']
                 bin_labels = [f"[{edges[i]:.2f}, {edges[i+1]:.2f})" for i in range(len(edges)-1)]
             elif not bin_labels:
                 bin_labels = [f"Bin {i}" for i in range(len(bin_counts))]
+            order_idx = ResultExporter._sorted_indices_by_keys(len(bin_labels), bin_sort_keys)
+            if order_idx:
+                bin_labels = [bin_labels[i] for i in order_idx]
+                if bin_counts:
+                    bin_counts = [bin_counts[i] for i in order_idx]
+                if bin_means:
+                    bin_means = [bin_means[i] for i in order_idx]
             
             # Chart
             sub_fig = go.Figure()
@@ -336,9 +362,15 @@ class ResultExporter:
         for pair_key in all_interactions:
             det = interaction_details.get(pair_key)
             if det:
-                bin_labels_1 = det.get('bin_labels_1', [])
-                bin_labels_2 = det.get('bin_labels_2', [])
-                means = det.get('means')
+                bin_labels_1 = det.get('bin_display_labels_1') or det.get('bin_labels_1', [])
+                bin_labels_2 = det.get('bin_display_labels_2') or det.get('bin_labels_2', [])
+                sort_keys_1 = det.get('bin_sort_keys_1') or []
+                sort_keys_2 = det.get('bin_sort_keys_2') or []
+                row_idx = ResultExporter._sorted_indices_by_keys(len(bin_labels_1), sort_keys_1)
+                col_idx = ResultExporter._sorted_indices_by_keys(len(bin_labels_2), sort_keys_2)
+                bin_labels_1 = [bin_labels_1[i] for i in row_idx]
+                bin_labels_2 = [bin_labels_2[i] for i in col_idx]
+                means = ResultExporter._reorder_2d(det.get('means'), row_idx, col_idx)
                 if means is None or not bin_labels_1 or not bin_labels_2:
                     continue
                 feature_1 = det.get('feature_1') or pair_key
@@ -370,12 +402,12 @@ class ResultExporter:
                 interaction_charts[pair_key] = pio.to_html(fig_int, full_html=False, include_plotlyjs=False)
                 
                 # Interaction Tables (Sample Count & Target Mean)
-                counts = det.get('counts')
+                counts = ResultExporter._reorder_2d(det.get('counts'), row_idx, col_idx)
                 if counts is None:
                     counts = [[pd.NA for _ in bin_labels_2] for _ in bin_labels_1]
                 df_counts = pd.DataFrame(counts, index=bin_labels_1, columns=bin_labels_2)
                 df_means = pd.DataFrame(means, index=bin_labels_1, columns=bin_labels_2)
-                dominant_labels = det.get("dominant_labels")
+                dominant_labels = ResultExporter._reorder_2d(det.get("dominant_labels"), row_idx, col_idx)
                 
                 # Format means
                 df_means = df_means.map(lambda x: f"{x:.4f}" if isinstance(x, (float, int)) else x)

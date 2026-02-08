@@ -109,6 +109,20 @@ def test_verbose_logging(capsys):
     assert "--- Mode:" in captured.out
     assert "Baseline Score:" in captured.out
 
+
+def test_notify_progress_calls_callback():
+    model = AdvancedCATDAP(verbose=False)
+    called = {}
+
+    def _cb(stage, data):
+        called["stage"] = stage
+        called["data"] = data
+
+    model.set_progress_callback(_cb)
+    model._notify_progress("stage_x", {"k": "v"})
+    assert called["stage"] == "stage_x"
+    assert called["data"] == {"k": "v"}
+
 def test_input_warnings(capsys):
     """Test warnings for non-unique index."""
     df = pd.DataFrame({'Target': [0, 1]*10, 'F1': range(20)})

@@ -2,6 +2,7 @@ import pytest
 from pathlib import Path
 import pandas as pd
 import duckdb
+from unittest.mock import patch
 from advanced_catdap.service.dataset_manager import DatasetManager
 
 @pytest.fixture
@@ -74,3 +75,46 @@ def test_register_dataset_with_special_column_names(manager, tmp_path):
     assert by_name["a b"].missing_count == 1
     assert by_name['quote"col'].missing_count == 1
     assert by_name["a-b"].unique_approx >= 1
+
+
+def test_quote_identifier_escapes_double_quotes():
+    assert DatasetManager._quote_identifier('a"b') == '"a""b"'
+
+
+def test_register_dataset_cleanup_ignores_remove_error(manager, tmp_path):
+    txt_file = tmp_path / "bad.txt"
+    txt_file.write_text("hello")
+    # Unsupported format triggers exception path and cleanup attempt.
+    with patch("advanced_catdap.service.dataset_manager.os.remove", side_effect=OSError("deny")):
+        with pytest.raises(ValueError, match="Unsupported format"):
+            manager.register_dataset(txt_file, dataset_id="fixed_id")
+
+
+def test_register_dataset_cleanup_handles_remove_error_after_partial_write(manager, tmp_path):
+    csv_file = tmp_path / "data.csv"
+    pd.DataFrame({"a": [1, 2]}).to_csv(csv_file, index=False)
+    with patch.object(manager, "_build_metadata_from_parquet", side_effect=RuntimeError("meta fail")):
+        with patch("advanced_catdap.service.dataset_manager.os.remove", side_effect=OSError("deny")):
+            with pytest.raises(RuntimeError, match="meta fail"):
+                manager.register_dataset(csv_file, dataset_id="fixed_id_2")
+
+
+def test_get_sample_raises_and_logs_when_duckdb_fails(manager, tmp_path):
+    csv_file = tmp_path / "data.csv"
+    pd.DataFrame({"a": [1, 2, 3]}).to_csv(csv_file, index=False)
+    meta = manager.register_dataset(csv_file)
+
+    class _BrokenConn:
+        def execute(self, *_args, **_kwargs):
+            raise RuntimeError("sample failed")
+        def close(self):
+            return None
+
+    with patch.object(manager, "_get_connection", return_value=_BrokenConn()):
+        with pytest.raises(RuntimeError, match="sample failed"):
+            manager.get_sample(meta.dataset_id, n_rows=2)
+
+
+def test_get_dataset_metadata_missing_raises(manager):
+    with pytest.raises(FileNotFoundError, match="not found"):
+        manager.get_dataset_metadata("missing_id")
