@@ -438,9 +438,10 @@ def render_deepdive_tab(result, selected_mode, selected_feature, theme, meta=Non
         if det:
             feature_1 = det.get('feature_1', 'Feature 1')
             feature_2 = det.get('feature_2', 'Feature 2')
+            metric_name = str(det.get("metric_name") or "Target Mean")
             fig_int = go.Figure(data=go.Heatmap(
                 z=det['means'], x=det['bin_labels_2'], y=det['bin_labels_1'],
-                colorscale=UNIFIED_HEATMAP_COLORSCALE, colorbar=dict(title="Target")
+                colorscale=UNIFIED_HEATMAP_COLORSCALE, colorbar=dict(title=metric_name)
             ))
             apply_chart_style(fig_int)
             fig_int.update_layout(
@@ -464,6 +465,7 @@ def render_deepdive_tab(result, selected_mode, selected_feature, theme, meta=Non
             # Interaction Tables
             df_counts = pd.DataFrame(det['counts'], index=det['bin_labels_1'], columns=det['bin_labels_2'])
             df_means = pd.DataFrame(det['means'], index=det['bin_labels_1'], columns=det['bin_labels_2'])
+            dominant_labels = det.get("dominant_labels")
             
             # Format means
             df_means = df_means.map(lambda x: f"{x:.4f}" if isinstance(x, (float, int)) else x)
@@ -471,17 +473,28 @@ def render_deepdive_tab(result, selected_mode, selected_feature, theme, meta=Non
             # Reset index for display
             df_counts_disp = df_counts.reset_index().rename(columns={'index': det['feature_1']})
             df_means_disp = df_means.reset_index().rename(columns={'index': det['feature_1']})
-
-            interaction_area.append(dbc.Row([
+            table_cols = [
                 dbc.Col([
                     html.H6("Sample Count Matrix", className="text-secondary mt-3"),
                     dbc.Table.from_dataframe(df_counts_disp, striped=False, bordered=True, hover=True, className="table-glass small")
                 ], md=6),
                 dbc.Col([
-                    html.H6("Target Mean Matrix", className="text-secondary mt-3"),
+                    html.H6(f"{metric_name} Matrix", className="text-secondary mt-3"),
                     dbc.Table.from_dataframe(df_means_disp, striped=False, bordered=True, hover=True, className="table-glass small")
                 ], md=6)
-            ]))
+            ]
+
+            if dominant_labels:
+                df_dominant = pd.DataFrame(dominant_labels, index=det['bin_labels_1'], columns=det['bin_labels_2'])
+                df_dominant_disp = df_dominant.reset_index().rename(columns={'index': det['feature_1']})
+                table_cols.append(
+                    dbc.Col([
+                        html.H6("Dominant Class Matrix", className="text-secondary mt-3"),
+                        dbc.Table.from_dataframe(df_dominant_disp, striped=False, bordered=True, hover=True, className="table-glass small")
+                    ], md=12)
+                )
+
+            interaction_area.append(dbc.Row(table_cols))
 
 
 
@@ -773,17 +786,23 @@ def download_html_report(n_clicks, result, job_id, meta, custom_filename, analys
         filename = f"{original_name}_Target-{safe_target}_Task-{safe_task}_Report_{timestamp}.html"
     
     try:
-        report_result = result
+        report_result = dict(result) if isinstance(result, dict) else result
+        requested_task_type = None
+        if isinstance(analysis_params, dict):
+            requested_task_type = analysis_params.get("task_type")
+
         # Export should use the freshest backend payload to avoid stale/partial store state.
         if job_id:
             try:
                 job_info = client.get_job_status(job_id)
                 latest = job_info.get("result") if isinstance(job_info, dict) else None
                 if isinstance(latest, dict) and latest:
-                    report_result = latest
+                    report_result = dict(latest)
                 if isinstance(job_info, dict):
                     params_from_job = job_info.get("params")
                     if isinstance(params_from_job, dict):
+                        if params_from_job.get("task_type"):
+                            requested_task_type = params_from_job.get("task_type")
                         if "Target-UnknownTarget" in filename and params_from_job.get("target_col"):
                             filename = filename.replace(
                                 "Target-UnknownTarget",
@@ -796,6 +815,9 @@ def download_html_report(n_clicks, result, job_id, meta, custom_filename, analys
                             )
             except Exception:
                 logger.warning("Failed to refresh job result for export", exc_info=True)
+
+        if isinstance(report_result, dict) and requested_task_type:
+            report_result["requested_task_type"] = requested_task_type
 
         desktop_mode = str(os.environ.get("CATDAP_DESKTOP_MODE", "")).strip().lower() in {
             "1", "true", "yes", "on"

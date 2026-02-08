@@ -120,10 +120,15 @@ def test_download_html_report_returns_payload(monkeypatch):
 
 
 def test_download_html_report_with_custom_filename(monkeypatch):
+    captured = {}
+    def _capture_report(result_arg, _meta, **_kwargs):
+        captured["result"] = result_arg
+        return io.BytesIO(b"<html></html>")
+
     monkeypatch.setattr(
         dash_mod.ResultExporter,
         "generate_html_report",
-        lambda *_args, **_kwargs: io.BytesIO(b"<html></html>"),
+        _capture_report,
     )
     monkeypatch.delenv("CATDAP_DESKTOP_MODE", raising=False)
     payload, status = dash_mod.download_html_report(
@@ -137,6 +142,7 @@ def test_download_html_report_with_custom_filename(monkeypatch):
     )
     assert payload is not dash.no_update
     assert status is dash.no_update
+    assert captured["result"]["requested_task_type"] == "auto"
 
 
 def test_download_html_report_desktop_mode_saved(monkeypatch):

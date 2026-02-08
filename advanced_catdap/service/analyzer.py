@@ -158,21 +158,48 @@ class AnalyzerService:
                                 tmp[f"{col}_bin"] = tmp[col].astype(str)
                         else:
                             tmp[f"{col}_bin"] = tmp[col].astype(str)
-                            
-                    # Pivot Table for Mean (Target Rate)
-                    # We need rows=f1, cols=f2
-                    pivot_mean = pd.pivot_table(tmp, values=params.target_col, index=f"{f1}_bin", columns=f"{f2}_bin", aggfunc='mean')
-                    pivot_count = pd.pivot_table(tmp, values=params.target_col, index=f"{f1}_bin", columns=f"{f2}_bin", aggfunc='count')
+
+                    index_col = f"{f1}_bin"
+                    column_col = f"{f2}_bin"
+                    target_series = tmp[params.target_col]
+                    target_is_string_like = (
+                        detected_mode.lower() == "classification"
+                        and not pd.api.types.is_numeric_dtype(target_series)
+                    )
+
+                    if target_is_string_like:
+                        grouped = tmp.groupby([index_col, column_col])[params.target_col]
+                        pivot_count = grouped.count().unstack(fill_value=0)
+                        pivot_mean = grouped.apply(
+                            lambda s: float(s.value_counts(normalize=True, dropna=False).iloc[0]) if len(s) else 0.0
+                        ).unstack(fill_value=0.0)
+                        pivot_labels = grouped.apply(
+                            lambda s: str(s.value_counts(dropna=False).idxmax()) if len(s) else ""
+                        ).unstack(fill_value="")
+                        metric_name = "Class Purity"
+                    else:
+                        # Numeric target: retain existing target mean semantics.
+                        pivot_mean = pd.pivot_table(
+                            tmp, values=params.target_col, index=index_col, columns=column_col, aggfunc='mean'
+                        )
+                        pivot_count = pd.pivot_table(
+                            tmp, values=params.target_col, index=index_col, columns=column_col, aggfunc='count'
+                        )
+                        pivot_labels = None
+                        metric_name = "Target Mean"
                     
                     # Fill NaMs
                     pivot_mean = pivot_mean.fillna(0)
                     pivot_count = pivot_count.fillna(0).astype(int)
+                    if pivot_labels is not None:
+                        pivot_labels = pivot_labels.reindex(index=pivot_mean.index, columns=pivot_mean.columns, fill_value="")
                     
                     # Convert to Lists
                     bin_labels_1 = pivot_mean.index.tolist()
                     bin_labels_2 = pivot_mean.columns.tolist()
                     means_matrix = pivot_mean.values.tolist()
                     counts_matrix = pivot_count.values.tolist()
+                    dominant_labels = pivot_labels.values.tolist() if pivot_labels is not None else None
                     
                     id_obj = InteractionDetail(
                         feature_1=f1,
@@ -180,7 +207,9 @@ class AnalyzerService:
                         bin_labels_1=bin_labels_1,
                         bin_labels_2=bin_labels_2,
                         counts=counts_matrix,
-                        means=means_matrix
+                        means=means_matrix,
+                        metric_name=metric_name,
+                        dominant_labels=dominant_labels,
                     )
                     id_dict[key] = id_obj
             

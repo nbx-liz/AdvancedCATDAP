@@ -140,6 +140,24 @@ def test_render_deepdive_tab_modes():
     assert "Bivariate Interaction Analysis" in str(deep_select)
 
 
+def test_render_deepdive_tab_class_purity_and_dominant_class_labels():
+    result = _full_result_payload()
+    result["interaction_details"]["A|B"]["metric_name"] = "Class Purity"
+    result["interaction_details"]["A|B"]["dominant_labels"] = [["Male", "Female"], ["Female", "Female"]]
+    deep = dash_mod.render_deepdive_tab(
+        result=result,
+        selected_mode="select",
+        selected_feature="A",
+        theme="dark",
+        meta={"n_columns": 4},
+        target_col="target",
+        selected_interaction_pair="A|B",
+    )
+    text = str(deep)
+    assert "Class Purity Matrix" in text
+    assert "Dominant Class Matrix" in text
+
+
 def test_render_content_both_tabs():
     result = _full_result_payload()
     dashboard = dash_mod.render_content(
