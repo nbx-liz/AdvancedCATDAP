@@ -67,7 +67,10 @@ class AnalyzerService:
                 dataset, 
                 target_col=params.target_col, 
                 candidates=params.candidates,
-                force_categoricals=params.force_categoricals
+                force_categoricals=params.force_categoricals,
+                ordered_categoricals=params.ordered_categoricals,
+                category_orders=params.category_orders,
+                label_prefix_style=params.label_prefix_style,
             )
         except Exception as e:
             self.logger.error(f"Analysis failed: {e}")
@@ -125,6 +128,8 @@ class AnalyzerService:
                     
                     fd = FeatureDetail(
                         bin_labels=group['Bin_Label'].tolist() if 'Bin_Label' in group.columns else None,
+                        bin_sort_keys=group['Bin_Sort_Key'].tolist() if 'Bin_Sort_Key' in group.columns else None,
+                        bin_display_labels=group['Bin_Display_Label'].tolist() if 'Bin_Display_Label' in group.columns else None,
                         bin_counts=group['Count'].tolist() if 'Count' in group.columns else None,
                         bin_means=group['Target_Mean'].tolist() if 'Target_Mean' in group.columns else None,
                     )
@@ -144,23 +149,21 @@ class AnalyzerService:
                 if f1 in dataset.columns and f2 in dataset.columns:
                     # Create a temporary dataframe with target
                     tmp = dataset[[f1, f2, params.target_col]].copy()
-                    
-                    # Binning Strategy: 
-                    # If numerical, use qcut/cut logic or existing bins? 
-                    # For simplicity in this "Service Layer Improvement", we use simple quantile binning (5 bins) 
-                    # or categorical codes if object.
-                    
-                    for col in [f1, f2]:
-                        if pd.api.types.is_numeric_dtype(tmp[col]) and tmp[col].nunique() > 5:
-                            try:
-                                tmp[f"{col}_bin"] = pd.qcut(tmp[col], q=5, duplicates='drop').astype(str)
-                            except:
-                                tmp[f"{col}_bin"] = tmp[col].astype(str)
-                        else:
-                            tmp[f"{col}_bin"] = tmp[col].astype(str)
 
-                    index_col = f"{f1}_bin"
-                    column_col = f"{f2}_bin"
+                    discretizer = getattr(model, "discretizer", None)
+                    rules = getattr(model, "transform_rules_", {}) or {}
+                    rule_1 = rules.get(f1)
+                    rule_2 = rules.get(f2)
+                    if discretizer is None or rule_1 is None or rule_2 is None:
+                        continue
+
+                    codes_1 = discretizer._transform_single_feature(tmp[f1], rule_1)
+                    codes_2 = discretizer._transform_single_feature(tmp[f2], rule_2)
+                    code_order_1, labels_1, sort_keys_1 = discretizer.get_axis_metadata(tmp[f1], codes_1, rule_1)
+                    code_order_2, labels_2, sort_keys_2 = discretizer.get_axis_metadata(tmp[f2], codes_2, rule_2)
+
+                    tmp["_bin_code_1"] = codes_1
+                    tmp["_bin_code_2"] = codes_2
                     target_series = tmp[params.target_col]
                     target_is_string_like = (
                         detected_mode.lower() == "classification"
@@ -168,7 +171,7 @@ class AnalyzerService:
                     )
 
                     if target_is_string_like:
-                        grouped = tmp.groupby([index_col, column_col])[params.target_col]
+                        grouped = tmp.groupby(["_bin_code_1", "_bin_code_2"])[params.target_col]
                         pivot_count = grouped.count().unstack(fill_value=0)
                         pivot_mean = grouped.apply(
                             lambda s: float(s.value_counts(normalize=True, dropna=False).iloc[0]) if len(s) else 0.0
@@ -180,23 +183,26 @@ class AnalyzerService:
                     else:
                         # Numeric target: retain existing target mean semantics.
                         pivot_mean = pd.pivot_table(
-                            tmp, values=params.target_col, index=index_col, columns=column_col, aggfunc='mean'
+                            tmp, values=params.target_col, index="_bin_code_1", columns="_bin_code_2", aggfunc='mean'
                         )
                         pivot_count = pd.pivot_table(
-                            tmp, values=params.target_col, index=index_col, columns=column_col, aggfunc='count'
+                            tmp, values=params.target_col, index="_bin_code_1", columns="_bin_code_2", aggfunc='count'
                         )
                         pivot_labels = None
                         metric_name = "Target Mean"
                     
+                    pivot_mean = pivot_mean.reindex(index=code_order_1, columns=code_order_2)
+                    pivot_count = pivot_count.reindex(index=code_order_1, columns=code_order_2)
+
                     # Fill NaMs
                     pivot_mean = pivot_mean.fillna(0)
                     pivot_count = pivot_count.fillna(0).astype(int)
                     if pivot_labels is not None:
-                        pivot_labels = pivot_labels.reindex(index=pivot_mean.index, columns=pivot_mean.columns, fill_value="")
+                        pivot_labels = pivot_labels.reindex(index=code_order_1, columns=code_order_2, fill_value="")
                     
                     # Convert to Lists
-                    bin_labels_1 = pivot_mean.index.tolist()
-                    bin_labels_2 = pivot_mean.columns.tolist()
+                    bin_labels_1 = labels_1
+                    bin_labels_2 = labels_2
                     means_matrix = pivot_mean.values.tolist()
                     counts_matrix = pivot_count.values.tolist()
                     dominant_labels = pivot_labels.values.tolist() if pivot_labels is not None else None
@@ -206,6 +212,10 @@ class AnalyzerService:
                         feature_2=f2,
                         bin_labels_1=bin_labels_1,
                         bin_labels_2=bin_labels_2,
+                        bin_sort_keys_1=sort_keys_1,
+                        bin_sort_keys_2=sort_keys_2,
+                        bin_display_labels_1=labels_1,
+                        bin_display_labels_2=labels_2,
                         counts=counts_matrix,
                         means=means_matrix,
                         metric_name=metric_name,

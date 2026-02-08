@@ -251,6 +251,7 @@ def test_html_export_interaction_details_with_dominant_class_matrix():
 
 def test_resolve_column_case_insensitive_and_missing():
     df = pd.DataFrame({"PAIR_SCORE": [1.0], "gain": [2.0]})
+    assert ResultExporter._resolve_column(df, ["gain"]) == "gain"
     assert ResultExporter._resolve_column(df, ["pair_score"]) == "PAIR_SCORE"
     assert ResultExporter._resolve_column(df, ["missing_col"]) is None
 
@@ -285,3 +286,51 @@ def test_html_export_feature_labels_from_edges_and_fallback_bins():
     content = html_io.getvalue().decode("utf-8")
     assert "[0.00, 1.00)" in content
     assert "Bin 0" in content
+
+
+def test_build_interaction_matrix_handles_nonempty_input_but_empty_pivot():
+    df = pd.DataFrame({"Feature_1": [None], "Feature_2": [None], "Gain": [1.0]})
+    mat = ResultExporter.build_interaction_matrix(df)
+    assert mat.empty
+
+
+def test_build_interaction_matrix_from_details_skips_invalid_and_exception_rows():
+    details = {
+        "not_dict": "x",
+        "empty_mats": {"feature_1": "A", "feature_2": "B", "counts": [], "means": []},
+        "boom_row": {"feature_1": "A", "feature_2": "B", "counts": object(), "means": [[1.0]]},
+        "good_row": {"feature_1": "A", "feature_2": "B", "counts": [[1, 2]], "means": [[0.1, 0.2]]},
+    }
+    mat = ResultExporter.build_interaction_matrix_from_details(details)
+    assert not mat.empty
+    assert "A" in mat.columns
+    assert "B" in mat.index
+
+
+def test_safe_dom_id_and_sorted_indices_internal_helpers():
+    dom_id = ResultExporter._safe_dom_id("!!!", 3, "feat")
+    assert dom_id.startswith("feat_3_item")
+    assert ResultExporter._sorted_indices_by_keys(3, ["b", "a", "c"]) == [1, 0, 2]
+
+
+def test_html_export_interaction_detail_with_missing_means_is_skipped():
+    result = {
+        "mode": "CLASSIFICATION",
+        "baseline_score": 10.0,
+        "feature_importances": [{"Feature": "A", "Delta_Score": 1.0, "Score": 9.0}],
+        "interaction_importances": [],
+        "feature_details": {},
+        "interaction_details": {
+            "A|B": {
+                "feature_1": "A",
+                "feature_2": "B",
+                "means": None,
+                "counts": [[1]],
+                "bin_labels_1": ["x"],
+                "bin_labels_2": ["y"],
+            }
+        },
+    }
+    html_io = ResultExporter.generate_html_report(result, meta={})
+    content = html_io.getvalue().decode("utf-8")
+    assert "Interaction: A vs B" not in content

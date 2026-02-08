@@ -92,6 +92,24 @@ def apply_chart_style(fig):
     )
     return fig
 
+
+def _sorted_indices_by_keys(length, sort_keys):
+    if not sort_keys or len(sort_keys) != length:
+        return list(range(length))
+    pairs = [(i, str(sort_keys[i])) for i in range(length)]
+    pairs.sort(key=lambda x: x[1])
+    return [idx for idx, _ in pairs]
+
+
+def _reorder_2d(values, row_idx, col_idx):
+    if values is None:
+        return values
+    out = []
+    for r in row_idx:
+        row = values[r] if r < len(values) else []
+        out.append([row[c] if c < len(row) else None for c in col_idx])
+    return out
+
 # ============================================================
 # Component Generators
 # ============================================================
@@ -368,12 +386,21 @@ def render_deepdive_tab(result, selected_mode, selected_feature, theme, meta=Non
         bin_counts = detail.get('bin_counts', [])
         bin_means = detail.get('bin_means', [])
         # Bin labeling logic
-        bin_labels = detail.get('bin_labels', [])
+        bin_labels = detail.get('bin_display_labels') or detail.get('bin_labels', [])
+        bin_sort_keys = detail.get('bin_sort_keys', [])
         bin_edges = detail.get('bin_edges', [])
         if bin_counts and not bin_labels and bin_edges and len(bin_edges) == len(bin_counts) + 1:
             bin_labels = [f"[{bin_edges[i]:.2f}, {bin_edges[i+1]:.2f})" for i in range(len(bin_counts))]
         elif bin_counts and not bin_labels:
              bin_labels = [f"Bin {i}" for i in range(len(bin_counts))]
+
+        order_idx = _sorted_indices_by_keys(len(bin_labels), bin_sort_keys)
+        if order_idx:
+            bin_labels = [bin_labels[i] for i in order_idx]
+            if bin_counts:
+                bin_counts = [bin_counts[i] for i in order_idx]
+            if bin_means:
+                bin_means = [bin_means[i] for i in order_idx]
         
         # Determine labels
         mode_val = result.get('mode', 'auto').upper()
@@ -439,8 +466,20 @@ def render_deepdive_tab(result, selected_mode, selected_feature, theme, meta=Non
             feature_1 = det.get('feature_1', 'Feature 1')
             feature_2 = det.get('feature_2', 'Feature 2')
             metric_name = str(det.get("metric_name") or "Target Mean")
+            row_labels = det.get('bin_display_labels_1') or det.get('bin_labels_1', [])
+            col_labels = det.get('bin_display_labels_2') or det.get('bin_labels_2', [])
+            row_sort_keys = det.get('bin_sort_keys_1') or []
+            col_sort_keys = det.get('bin_sort_keys_2') or []
+            row_idx = _sorted_indices_by_keys(len(row_labels), row_sort_keys)
+            col_idx = _sorted_indices_by_keys(len(col_labels), col_sort_keys)
+            means_matrix = _reorder_2d(det.get('means'), row_idx, col_idx)
+            counts_matrix = _reorder_2d(det.get('counts'), row_idx, col_idx)
+            dominant_labels = det.get("dominant_labels")
+            dominant_matrix = _reorder_2d(dominant_labels, row_idx, col_idx) if dominant_labels else None
+            row_labels = [row_labels[i] for i in row_idx]
+            col_labels = [col_labels[i] for i in col_idx]
             fig_int = go.Figure(data=go.Heatmap(
-                z=det['means'], x=det['bin_labels_2'], y=det['bin_labels_1'],
+                z=means_matrix, x=col_labels, y=row_labels,
                 colorscale=UNIFIED_HEATMAP_COLORSCALE, colorbar=dict(title=metric_name)
             ))
             apply_chart_style(fig_int)
@@ -463,9 +502,10 @@ def render_deepdive_tab(result, selected_mode, selected_feature, theme, meta=Non
             interaction_area.append(html.Div(dcc.Graph(figure=fig_int), className="glass-card"))
 
             # Interaction Tables
-            df_counts = pd.DataFrame(det['counts'], index=det['bin_labels_1'], columns=det['bin_labels_2'])
-            df_means = pd.DataFrame(det['means'], index=det['bin_labels_1'], columns=det['bin_labels_2'])
-            dominant_labels = det.get("dominant_labels")
+            if counts_matrix is None:
+                counts_matrix = [[pd.NA for _ in col_labels] for _ in row_labels]
+            df_counts = pd.DataFrame(counts_matrix, index=row_labels, columns=col_labels)
+            df_means = pd.DataFrame(means_matrix, index=row_labels, columns=col_labels)
             
             # Format means
             df_means = df_means.map(lambda x: f"{x:.4f}" if isinstance(x, (float, int)) else x)
@@ -484,8 +524,8 @@ def render_deepdive_tab(result, selected_mode, selected_feature, theme, meta=Non
                 ], md=6)
             ]
 
-            if dominant_labels:
-                df_dominant = pd.DataFrame(dominant_labels, index=det['bin_labels_1'], columns=det['bin_labels_2'])
+            if dominant_matrix:
+                df_dominant = pd.DataFrame(dominant_matrix, index=row_labels, columns=col_labels)
                 df_dominant_disp = df_dominant.reset_index().rename(columns={'index': det['feature_1']})
                 table_cols.append(
                     dbc.Col([

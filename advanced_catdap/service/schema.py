@@ -34,6 +34,8 @@ class InteractionImportance(BaseModel):
 class FeatureDetail(BaseModel):
     bin_edges: Optional[List[float]] = None
     bin_labels: Optional[List[str]] = None
+    bin_sort_keys: Optional[List[str]] = None
+    bin_display_labels: Optional[List[str]] = None
     bin_counts: Optional[List[int]] = None
     bin_means: Optional[List[float]] = None
     woe: Optional[List[float]] = None
@@ -48,7 +50,10 @@ class AnalysisParams(BaseModel):
     top_k: int = 20
     delta_threshold: float = 0.0
     force_categoricals: Optional[List[str]] = None
+    ordered_categoricals: Optional[List[str]] = None
+    category_orders: Optional[Dict[str, List[str]]] = None
     sample_size: Optional[int] = None
+    label_prefix_style: str = "numeric_only"
     use_aicc: bool = True
     random_state: int = 42
 
@@ -58,6 +63,10 @@ class InteractionDetail(BaseModel):
     feature_2: str
     bin_labels_1: List[str]
     bin_labels_2: List[str]
+    bin_sort_keys_1: Optional[List[str]] = None
+    bin_sort_keys_2: Optional[List[str]] = None
+    bin_display_labels_1: Optional[List[str]] = None
+    bin_display_labels_2: Optional[List[str]] = None
     counts: List[List[int]] # 2D matrix
     means: List[List[float]] # 2D matrix
     metric_name: Optional[str] = None

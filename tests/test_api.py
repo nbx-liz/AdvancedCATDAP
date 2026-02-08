@@ -3,6 +3,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 import os
 import shutil
+from fastapi import HTTPException
 
 from advanced_catdap.service import api as api_module
 from advanced_catdap.service.api import app
@@ -188,3 +189,112 @@ def test_export_html_cancelled_returns_saved_false(monkeypatch):
         assert body["reason"] == "cancelled"
     finally:
         api_module.configure_desktop_export_hook(None)
+
+
+def test_upload_rejects_unsupported_extension():
+    files = {"file": ("bad.txt", "hello", "text/plain")}
+    res = client.post("/datasets", files=files)
+    assert res.status_code == 400
+    assert "Only .csv and .parquet files are supported." in res.json()["detail"]
+
+
+def test_get_dataset_metadata_404_when_missing():
+    with patch.object(api_module.dataset_manager, "get_dataset_metadata", side_effect=FileNotFoundError):
+        res = client.get("/datasets/missing")
+    assert res.status_code == 404
+
+
+def test_get_dataset_sample_404_when_missing():
+    with patch.object(api_module.dataset_manager, "get_sample", side_effect=FileNotFoundError):
+        res = client.get("/datasets/missing/sample")
+    assert res.status_code == 404
+
+
+def test_get_dataset_preview_404_when_missing():
+    with patch.object(api_module.dataset_manager, "get_preview", side_effect=FileNotFoundError):
+        res = client.get("/datasets/missing/preview")
+    assert res.status_code == 404
+
+
+def test_get_dataset_sample_success_converts_nan_to_none():
+    import pandas as pd
+
+    df = pd.DataFrame({"a": [1, None]})
+    with patch.object(api_module.dataset_manager, "get_sample", return_value=df):
+        res = client.get("/datasets/ok/sample?rows=2")
+    assert res.status_code == 200
+    body = res.json()
+    assert body[0]["a"] == 1.0
+    assert body[1]["a"] is None
+
+
+def test_submit_job_404_when_dataset_missing(tmp_path):
+    with patch.object(api_module.dataset_manager, "storage_dir", tmp_path):
+        res = client.post("/jobs?dataset_id=missing", json={"target_col": "target"})
+    assert res.status_code == 404
+
+
+def test_cancel_job_success_returns_cancelled():
+    with patch("advanced_catdap.service.api.job_manager.cancel_job", return_value=None):
+        res = client.delete("/jobs/abc123")
+    assert res.status_code == 200
+    assert res.json()["status"] == "cancelled"
+
+
+def test_export_html_requires_desktop_hook(monkeypatch):
+    monkeypatch.setenv("CATDAP_DESKTOP_MODE", "1")
+    api_module.configure_desktop_export_hook(None)
+    res = client.post(
+        "/export/html",
+        json={
+            "result": {"feature_importances": []},
+            "meta": {"filename": "input.csv"},
+            "filename": "report.html",
+            "theme": "dark",
+        },
+    )
+    assert res.status_code == 503
+
+
+def test_export_html_propagates_http_exception(monkeypatch):
+    monkeypatch.setenv("CATDAP_DESKTOP_MODE", "1")
+    api_module.configure_desktop_export_hook(lambda _name, _payload: (_ for _ in ()).throw(HTTPException(status_code=418, detail="teapot")))
+    try:
+        res = client.post(
+            "/export/html",
+            json={
+                "result": {"feature_importances": []},
+                "meta": {"filename": "input.csv"},
+                "filename": "report.html",
+                "theme": "dark",
+            },
+        )
+        assert res.status_code == 418
+    finally:
+        api_module.configure_desktop_export_hook(None)
+
+
+def test_export_html_returns_500_on_unexpected_exception(monkeypatch):
+    monkeypatch.setenv("CATDAP_DESKTOP_MODE", "1")
+    api_module.configure_desktop_export_hook(lambda _name, _payload: (_ for _ in ()).throw(ValueError("boom")))
+    try:
+        res = client.post(
+            "/export/html",
+            json={
+                "result": {"feature_importances": []},
+                "meta": {"filename": "input.csv"},
+                "filename": "report.html",
+                "theme": "dark",
+            },
+        )
+        assert res.status_code == 500
+        assert "Export failed: boom" in res.json()["detail"]
+    finally:
+        api_module.configure_desktop_export_hook(None)
+
+
+def test_resolve_cors_settings_warns_for_wildcard_credentials(monkeypatch, caplog):
+    monkeypatch.setenv("CATDAP_CORS_ALLOW_ORIGINS", "*")
+    monkeypatch.setenv("CATDAP_CORS_ALLOW_CREDENTIALS", "true")
+    _ = api_module.resolve_cors_settings()
+    assert "allow_credentials=True with wildcard origin is insecure." in caplog.text

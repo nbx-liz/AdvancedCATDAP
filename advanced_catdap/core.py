@@ -116,6 +116,9 @@ class AdvancedCATDAP(BaseEstimator, TransformerMixin):
     def fit(self, X: pd.DataFrame, y: Union[str, np.ndarray, pd.Series] = None, 
             candidates: List[str] = None, max_bins: int = None, top_k: int = None, 
             delta_threshold: float = None, force_categoricals: List[str] = None,
+            ordered_categoricals: List[str] = None,
+            category_orders: Dict[str, List[str]] = None,
+            label_prefix_style: str = None,
             target_col: str = None):
         """
         Fit the model to dataset.
@@ -210,6 +213,9 @@ class AdvancedCATDAP(BaseEstimator, TransformerMixin):
             target_sq=target_sq, target_int=target_int, n_classes=n_classes,
             sample_indices=sample_indices, sample_mask_full=sample_mask_full,
             force_categoricals=force_categoricals,
+            ordered_categoricals=ordered_categoricals,
+            category_orders=category_orders,
+            label_prefix_style=label_prefix_style,
             progress_callback=self._notify_progress
         )
 

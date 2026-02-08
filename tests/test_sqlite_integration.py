@@ -8,6 +8,22 @@ from advanced_catdap.service.job_manager import JobManager
 from advanced_catdap.service.schema import AnalysisParams
 
 
+def _wait_for_terminal_status(jm: JobManager, job_id: str, timeout_sec: int = 20, interval_sec: float = 0.5):
+    seen = set()
+    deadline = time.time() + timeout_sec
+    last = None
+    while time.time() < deadline:
+        status = jm.get_job_status(job_id)
+        last = status
+        st = status.get("status")
+        if st:
+            seen.add(st)
+        if st in {"SUCCESS", "FAILURE"}:
+            return status, seen
+        time.sleep(interval_sec)
+    return last, seen
+
+
 @pytest.mark.integration
 def test_sqlite_jobs_integration(tmp_path: Path) -> None:
     """Integration test for local sqlite-backed job lifecycle."""
@@ -25,18 +41,12 @@ def test_sqlite_jobs_integration(tmp_path: Path) -> None:
     )
     df.to_parquet(parquet_path)
 
-    job_id = jm.submit_job(dataset_id, AnalysisParams(target_col="target"))
+    params = AnalysisParams(target_col="target")
+    job_id = jm.submit_job(dataset_id, params)
     immediate = jm.get_job_status(job_id)
     assert immediate["status"] in {"PENDING", "RUNNING", "PROGRESS"}
 
-    final_status = None
-    timeout_sec = 20
-    for _ in range(timeout_sec):
-        time.sleep(1)
-        status = jm.get_job_status(job_id)
-        if status["status"] in {"SUCCESS", "FAILURE"}:
-            final_status = status
-            break
+    final_status, seen = _wait_for_terminal_status(jm, job_id, timeout_sec=20, interval_sec=0.5)
 
     if final_status is None:
         log_file = tmp_path / "jobs_logs" / f"{job_id}.log"
@@ -50,3 +60,8 @@ def test_sqlite_jobs_integration(tmp_path: Path) -> None:
 
     assert final_status["status"] == "SUCCESS"
     assert final_status.get("result") is not None
+    assert seen & {"PROGRESS", "RUNNING", "PENDING"}
+
+    # Cache integration: same dataset+params should resolve to same job ID.
+    cached_job_id = jm.submit_job(dataset_id, params)
+    assert cached_job_id == job_id

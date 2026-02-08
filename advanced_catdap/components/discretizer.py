@@ -86,6 +86,7 @@ class Discretizer(BaseEstimator, TransformerMixin):
                  task_type: str,
                  scorer: Scorer,
                  numeric_threshold: float = DEFAULT_NUMERIC_THRESHOLD,
+                 integer_as_level_threshold: int = DEFAULT_INTEGER_AS_LEVEL_THRESHOLD,
                  min_samples_leaf_rate: float = DEFAULT_MIN_SAMPLES_LEAF_RATE,
                  max_leaf_samples: int = DEFAULT_MAX_LEAF_SAMPLES,
                  max_bins: int = DEFAULT_MAX_BINS,
@@ -94,11 +95,13 @@ class Discretizer(BaseEstimator, TransformerMixin):
                  max_estimated_uniques: int = DEFAULT_MAX_ESTIMATED_UNIQUES,
                  delta_threshold: float = DEFAULT_DELTA_THRESHOLD,
                  top_k: int = DEFAULT_TOP_K,
-                 save_rules_mode: str = DEFAULT_SAVE_RULES_MODE):
+                 save_rules_mode: str = DEFAULT_SAVE_RULES_MODE,
+                 label_prefix_style: str = DEFAULT_LABEL_PREFIX_STYLE):
         
         self.task_type = task_type
         self.scorer = scorer
         self.numeric_threshold = numeric_threshold
+        self.integer_as_level_threshold = integer_as_level_threshold
         self.min_samples_leaf_rate = min_samples_leaf_rate
         self.max_leaf_samples = max_leaf_samples
         self.max_bins = max_bins
@@ -108,6 +111,9 @@ class Discretizer(BaseEstimator, TransformerMixin):
         self.delta_threshold = delta_threshold
         self.top_k = top_k
         self.save_rules_mode = save_rules_mode
+        self.label_prefix_style = label_prefix_style
+        self.ordered_categoricals_ = set()
+        self.category_orders_ = {}
         
         # State
         self.transform_rules_ = {}
@@ -130,11 +136,19 @@ class Discretizer(BaseEstimator, TransformerMixin):
             sample_indices: Optional[np.ndarray] = None,
             sample_mask_full: Optional[np.ndarray] = None,
             force_categoricals: List[str] = None,
+            ordered_categoricals: List[str] = None,
+            category_orders: Optional[Dict[str, List[str]]] = None,
+            label_prefix_style: Optional[str] = None,
             progress_callback: Optional[Callable] = None):
         
         n_total = len(X)
         candidates = X.columns.tolist()
         force_cats_set = set(force_categoricals) if force_categoricals else set()
+        ordered_cats_set = set(ordered_categoricals) if ordered_categoricals else set()
+        self.ordered_categoricals_ = ordered_cats_set
+        self.category_orders_ = category_orders or {}
+        if label_prefix_style in {"none", "numeric_only", "all_bins"}:
+            self.label_prefix_style = label_prefix_style
         
         uni_results = []
         temp_rules = {}
@@ -150,6 +164,8 @@ class Discretizer(BaseEstimator, TransformerMixin):
                 progress_callback("univariate_progress", {"current": i + 1, "total": len(candidates), "feature": feature})
             
             is_forced_cat = feature in force_cats_set
+            explicit_order = self.category_orders_.get(feature)
+            is_ordered_cat = feature in ordered_cats_set or explicit_order is not None
             
             best_codes, score, actual_r, method, rule = self._process_feature_internal(
                 X[feature], y, target_sq, target_int, n_classes,
@@ -157,6 +173,8 @@ class Discretizer(BaseEstimator, TransformerMixin):
                 self.scorer.calc_score_wrapper if hasattr(self.scorer, 'calc_score_wrapper') else None, # We don't have wrapper in scorer
                 baseline_score,
                 force_category=is_forced_cat,
+                ordered_category=is_ordered_cat,
+                category_order=explicit_order,
                 feature_name=feature
             )
             
@@ -193,7 +211,10 @@ class Discretizer(BaseEstimator, TransformerMixin):
     def _process_feature_internal(self, raw_series, target, target_sq, target_int, n_classes, 
                                   max_bins, min_samples, sample_indices, sample_mask_full,
                                   scorer_wrapper_unused, baseline_score,
-                                  force_category=False, feature_name="unknown"):
+                                  force_category=False,
+                                  ordered_category=False,
+                                  category_order: Optional[List[str]] = None,
+                                  feature_name="unknown"):
         
         is_numeric_type = pd.api.types.is_numeric_dtype(raw_series)
         numeric_values = None
@@ -209,10 +230,24 @@ class Discretizer(BaseEstimator, TransformerMixin):
                     numeric_values = temp.to_numpy(dtype=float)
 
         if numeric_values is not None:
+            if self._should_treat_as_integer_levels(numeric_values):
+                return self._group_integer_levels(
+                    numeric_values, target, target_sq, target_int, n_classes, baseline_score
+                )
             return self._discretize_numeric(numeric_values, target, target_sq, target_int, n_classes,
                                           max_bins, min_samples, sample_indices, sample_mask_full, baseline_score, feature_name)
         else:
-            return self._group_categorical(raw_series, target, target_sq, target_int, n_classes, sample_indices, baseline_score)
+            return self._group_categorical(
+                raw_series,
+                target,
+                target_sq,
+                target_int,
+                n_classes,
+                sample_indices,
+                baseline_score,
+                ordered=ordered_category,
+                category_order=category_order,
+            )
 
     def _discretize_numeric(self, numeric_values, target, target_sq, target_int, n_classes, 
                            max_bins, min_samples, sample_indices, sample_mask_full, baseline_score, feature_name="unknown"):
@@ -291,7 +326,59 @@ class Discretizer(BaseEstimator, TransformerMixin):
         
         return downcast_codes_safe(full_codes), final_score, best_r, f"{best_name}_{best_nbins}({best_r})", best_rule
 
-    def _group_categorical(self, raw_series, target, target_sq, target_int, n_classes, sample_indices, baseline_score):
+    def _should_treat_as_integer_levels(self, numeric_values: np.ndarray) -> bool:
+        valid = numeric_values[~np.isnan(numeric_values)]
+        if valid.size == 0:
+            return False
+        if not np.all(np.isclose(valid, np.round(valid))):
+            return False
+        n_unique = int(pd.Series(valid).nunique())
+        return 2 <= n_unique <= int(self.integer_as_level_threshold)
+
+    def _group_integer_levels(self, numeric_values, target, target_sq, target_int, n_classes, baseline_score):
+        valid_mask = ~np.isnan(numeric_values)
+        if not np.any(valid_mask):
+            return None, baseline_score, 1, "all_nan", None
+
+        valid_vals = np.round(numeric_values[valid_mask]).astype(np.int64)
+        unique_vals = np.unique(valid_vals)
+        unique_vals.sort()
+        n_keep = len(unique_vals)
+        if n_keep == 0:
+            return None, baseline_score, 1, "no_integer_levels", None
+
+        other_code = n_keep
+        missing_code = n_keep + 1
+        value_map = {int(v): i for i, v in enumerate(unique_vals)}
+
+        codes = np.full(len(numeric_values), other_code, dtype=int)
+        valid_idx = np.where(valid_mask)[0]
+        mapped = pd.Series(valid_vals).map(value_map).to_numpy()
+        codes[valid_idx] = mapped
+        codes[~valid_mask] = missing_code
+        r = missing_code + 1
+
+        rule = {
+            'type': 'integer_levels',
+            'value_map': value_map,
+            'other_code': other_code,
+            'missing_code': missing_code
+        }
+        score = self._calc_score_wrapper(codes, target, target_sq, target_int, n_classes, r)
+        return downcast_codes_safe(codes), score, r, f"integer_levels({r})", rule
+
+    def _group_categorical(
+        self,
+        raw_series,
+        target,
+        target_sq,
+        target_int,
+        n_classes,
+        sample_indices,
+        baseline_score,
+        ordered: bool = False,
+        category_order: Optional[List[str]] = None,
+    ):
         n_total = len(target)
         is_high_card, is_id_like = check_cardinality_and_id(raw_series, sample_indices, self.max_estimated_uniques)
         if is_id_like: return None, baseline_score, 1, "id_col", None
@@ -318,7 +405,46 @@ class Discretizer(BaseEstimator, TransformerMixin):
         if len(final_indices) == 0:
             return None, baseline_score, 1, "no_valid_category", None
 
-        final_indices = final_indices[np.argsort(-valid_counts[final_indices])]
+        if ordered:
+            if category_order:
+                rank_map = {str(v): i for i, v in enumerate(category_order)}
+                ranked = [(idx, rank_map.get(str(uniques[idx]))) for idx in final_indices]
+                ranked = [(idx, r) for idx, r in ranked if r is not None]
+                if ranked:
+                    ranked.sort(key=lambda x: x[1])
+                    min_rank = ranked[0][1]
+                    max_rank = ranked[-1][1]
+                    contiguous_indices = []
+                    for idx, val in enumerate(uniques):
+                        rank = rank_map.get(str(val))
+                        if rank is not None and min_rank <= rank <= max_rank:
+                            contiguous_indices.append(idx)
+                    final_indices = np.array(contiguous_indices, dtype=np.int64)
+                else:
+                    final_indices = np.sort(final_indices)
+            elif isinstance(raw_series.dtype, pd.CategoricalDtype) and raw_series.dtype.ordered:
+                order_map = {str(v): i for i, v in enumerate(raw_series.dtype.categories.tolist())}
+                ranked = [(idx, order_map.get(str(uniques[idx]))) for idx in final_indices]
+                ranked = [(idx, r) for idx, r in ranked if r is not None]
+                if ranked:
+                    ranked.sort(key=lambda x: x[1])
+                    min_rank = ranked[0][1]
+                    max_rank = ranked[-1][1]
+                    contiguous_indices = []
+                    for idx, val in enumerate(uniques):
+                        rank = order_map.get(str(val))
+                        if rank is not None and min_rank <= rank <= max_rank:
+                            contiguous_indices.append(idx)
+                    final_indices = np.array(contiguous_indices, dtype=np.int64)
+                else:
+                    final_indices = np.sort(final_indices)
+            else:
+                # Keep first-seen order if no explicit order metadata exists.
+                final_indices = np.sort(final_indices)
+        else:
+            label_keys = np.array([str(uniques[idx]) for idx in final_indices], dtype=object)
+            freq_keys = -valid_counts[final_indices]
+            final_indices = final_indices[np.lexsort((label_keys, freq_keys))]
         n_keep = len(final_indices)
         other_code = n_keep
         missing_code = n_keep + 1
@@ -331,7 +457,13 @@ class Discretizer(BaseEstimator, TransformerMixin):
         
         keep_values = uniques[final_indices]
         value_map = {val: i for i, val in enumerate(keep_values)}
-        rule = {'type': 'category', 'value_map': value_map, 'other_code': other_code, 'missing_code': missing_code}
+        rule = {
+            'type': 'category',
+            'value_map': value_map,
+            'other_code': other_code,
+            'missing_code': missing_code,
+            'ordered': bool(ordered),
+        }
         
         score = self._calc_score_wrapper(codes, target, target_sq, target_int, n_classes, r)
         return downcast_codes_safe(codes), score, r, f"category({r})", rule
@@ -399,6 +531,131 @@ class Discretizer(BaseEstimator, TransformerMixin):
             
         return transformed_df
 
+    def _format_sort_key(self, rank: int, total_bins: int) -> str:
+        width = max(2, len(str(max(total_bins, 1))))
+        return f"{int(rank):0{width}d}"
+
+    def _should_prefix_labels(self, rule_type: str) -> bool:
+        style = str(self.label_prefix_style or "numeric_only")
+        if style == "none":
+            return False
+        if style == "all_bins":
+            return True
+        if style == "numeric_only":
+            return rule_type in {"qcut", "cut", "tree", "integer_levels"}
+        return False
+
+    def _build_sort_rank_map(
+        self,
+        code_order: List[int],
+        rule: Dict[str, Any],
+        code_min_map: Optional[Dict[int, float]] = None,
+    ) -> Dict[int, int]:
+        missing_code = rule.get("missing_code")
+        other_code = rule.get("other_code")
+        rule_type = rule.get("type")
+        normal_codes = [c for c in code_order if c not in {missing_code, other_code}]
+
+        if rule_type in {"qcut", "cut", "tree"}:
+            code_min_map = code_min_map or {}
+
+            def _numeric_key(c: int):
+                lo = code_min_map.get(c, np.inf)
+                if lo is None or (isinstance(lo, float) and np.isnan(lo)):
+                    lo = np.inf
+                return (float(lo), int(c))
+
+            normal_codes = sorted(normal_codes, key=_numeric_key)
+        elif rule_type == "integer_levels":
+            inv_map = {int(v): int(k) for k, v in (rule.get("value_map", {}) or {}).items()}
+            normal_codes = sorted(normal_codes, key=lambda c: (inv_map.get(int(c), np.inf), int(c)))
+        else:
+            # Categorical codes already encode intended order.
+            normal_codes = sorted(normal_codes)
+
+        rank_map: Dict[int, int] = {}
+        rank = 1
+        for c in normal_codes:
+            rank_map[int(c)] = rank
+            rank += 1
+        if other_code in code_order:
+            rank_map[int(other_code)] = rank
+            rank += 1
+        if missing_code in code_order:
+            rank_map[int(missing_code)] = rank
+
+        return rank_map
+
+    def _build_bin_label_and_key(
+        self,
+        code,
+        rule,
+        min_val=None,
+        max_val=None,
+        total_bins: int = 1,
+        rank_map: Optional[Dict[int, int]] = None,
+        total_slots: Optional[int] = None,
+    ):
+        if rank_map is not None and int(code) in rank_map:
+            rank = int(rank_map[int(code)])
+            slot_count = int(total_slots if total_slots is not None else max(rank_map.values()))
+            sort_key = self._format_sort_key(rank, slot_count)
+        else:
+            if code == rule.get('missing_code'):
+                sort_key = self._format_sort_key(total_bins + 2, total_bins + 2)
+            elif code == rule.get('other_code'):
+                sort_key = self._format_sort_key(total_bins + 1, total_bins + 2)
+            else:
+                sort_key = self._format_sort_key(int(code) + 1, total_bins + 2)
+
+        base_label = self._get_bin_label(code, rule, min_val=min_val, max_val=max_val)
+        if self._should_prefix_labels(rule.get("type", "")):
+            display_label = f"{sort_key}_{base_label}"
+        else:
+            display_label = base_label
+        return sort_key, display_label
+
+    def get_axis_metadata(self, raw_series: pd.Series, codes: np.ndarray, rule: Dict[str, Any]):
+        code_order = sorted(int(c) for c in np.unique(codes))
+        total_bins = int(rule.get('missing_code', 0)) + 1
+        series_numeric = pd.to_numeric(raw_series, errors="coerce")
+        is_numeric_interval_rule = rule.get("type") in {"qcut", "cut", "tree"}
+        code_min_map: Dict[int, float] = {}
+        if is_numeric_interval_rule:
+            for code in code_order:
+                mask = codes == code
+                if mask.any():
+                    vals = series_numeric[mask]
+                    if not vals.empty:
+                        code_min_map[int(code)] = float(vals.min())
+        rank_map = self._build_sort_rank_map(code_order, rule, code_min_map=code_min_map)
+        total_slots = max(rank_map.values()) if rank_map else total_bins + 2
+
+        labels = []
+        sort_keys = []
+        for code in code_order:
+            min_val = None
+            max_val = None
+            if is_numeric_interval_rule:
+                mask = codes == code
+                if mask.any():
+                    vals = series_numeric[mask]
+                    if not vals.empty:
+                        min_val = vals.min()
+                        max_val = vals.max()
+            sort_key, display_label = self._build_bin_label_and_key(
+                code,
+                rule,
+                min_val=min_val,
+                max_val=max_val,
+                total_bins=total_bins,
+                rank_map=rank_map,
+                total_slots=total_slots,
+            )
+            sort_keys.append(sort_key)
+            labels.append(display_label)
+        return code_order, labels, sort_keys
+
     def get_feature_details(self, df_origin: pd.DataFrame, target_vals: np.ndarray) -> pd.DataFrame:
         details_list = []
         
@@ -444,32 +701,69 @@ class Discretizer(BaseEstimator, TransformerMixin):
             })
             
             groups = tmp_df.groupby('code')
-            
+            total_bins = int(rule.get('missing_code', 0)) + 1
+            group_stats: Dict[int, Dict[str, Any]] = {}
             for code, grp in groups:
-                 cnt = len(grp)
-                 t_mean = grp['target'].mean()
-                 
-                 f_min = None
-                 f_max = None
-                 if is_numeric_rule:
-                     f_min = grp['feat'].min()
-                     f_max = grp['feat'].max()
-                 
-                 label = self._get_bin_label(code, rule, f_min, f_max)
-                 
-                 details_list.append({
-                     'Feature': feature,
-                     'Bin_Idx': int(code),
-                     'Bin_Label': label,
-                     'Count': int(cnt),
-                     'Target_Mean': float(t_mean)
-                 })
+                cnt = len(grp)
+                t_mean = grp['target'].mean()
+                f_min = None
+                f_max = None
+                if is_numeric_rule:
+                    f_min = grp['feat'].min()
+                    f_max = grp['feat'].max()
+                group_stats[int(code)] = {
+                    "count": int(cnt),
+                    "target_mean": float(t_mean),
+                    "min_val": f_min,
+                    "max_val": f_max,
+                }
+
+            code_order = sorted(group_stats.keys())
+            code_min_map: Dict[int, float] = {}
+            if is_numeric_rule:
+                for c in code_order:
+                    lo = group_stats[c]["min_val"]
+                    if lo is not None and not (isinstance(lo, float) and np.isnan(lo)):
+                        code_min_map[c] = float(lo)
+            rank_map = self._build_sort_rank_map(code_order, rule, code_min_map=code_min_map)
+            total_slots = max(rank_map.values()) if rank_map else total_bins + 2
+
+            for code in code_order:
+                stats = group_stats[code]
+                sort_key, display_label = self._build_bin_label_and_key(
+                    code,
+                    rule,
+                    stats["min_val"],
+                    stats["max_val"],
+                    total_bins=total_bins,
+                    rank_map=rank_map,
+                    total_slots=total_slots,
+                )
+                details_list.append({
+                    'Feature': feature,
+                    'Bin_Idx': int(code),
+                    'Bin_Label': display_label,
+                    'Bin_Sort_Key': sort_key,
+                    'Bin_Display_Label': display_label,
+                    'Count': stats["count"],
+                    'Target_Mean': stats["target_mean"]
+                })
         
         if details_list:
             df_details = pd.DataFrame(details_list)
             return df_details.sort_values(['Feature', 'Bin_Idx']).reset_index(drop=True)
         else:
-            return pd.DataFrame(columns=['Feature', 'Bin_Idx', 'Bin_Label', 'Count', 'Target_Mean'])
+            return pd.DataFrame(
+                columns=[
+                    'Feature',
+                    'Bin_Idx',
+                    'Bin_Label',
+                    'Bin_Sort_Key',
+                    'Bin_Display_Label',
+                    'Count',
+                    'Target_Mean',
+                ]
+            )
 
     def _transform_single_feature(self, raw_series, rule):
         # Helper to transform single feature (logic duplicated from transform but simplified)
@@ -501,6 +795,19 @@ class Discretizer(BaseEstimator, TransformerMixin):
                 found = mapped.notna()
                 if found.any(): codes[np.where(~isna_mask)[0][found]] = mapped[found].astype(int)
         
+        elif rule_type == 'integer_levels':
+            vals = pd.to_numeric(raw_series, errors='coerce').to_numpy(dtype=float)
+            nan_mask = np.isnan(vals)
+            rounded = np.round(vals[~nan_mask]).astype(np.int64)
+            codes = np.full(len(vals), rule.get('other_code', missing_code), dtype=int)
+            if rounded.size:
+                mapped = pd.Series(rounded).map(rule['value_map'])
+                found = mapped.notna().to_numpy()
+                valid_idx = np.where(~nan_mask)[0]
+                if found.any():
+                    codes[valid_idx[found]] = mapped[found].astype(int)
+            codes[nan_mask] = missing_code
+
         if codes is None:
              codes = np.full(len(raw_series), missing_code, dtype=int)
 
@@ -523,6 +830,14 @@ class Discretizer(BaseEstimator, TransformerMixin):
             elif len(cats) > 1:
                 return ",".join(cats[:3]) + ("..." if len(cats)>3 else "")
             return f"Cat_{code}"
+        elif r_type == 'integer_levels':
+            if code == rule.get('other_code'):
+                return "Other"
+            val_map = rule.get('value_map', {})
+            values = [k for k, v in val_map.items() if v == code]
+            if values:
+                return str(values[0])
+            return f"Level_{code}"
             
         elif r_type in ['qcut', 'cut']:
             bins = rule['bins']

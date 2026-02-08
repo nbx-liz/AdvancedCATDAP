@@ -85,3 +85,19 @@ def test_get_job_status_success(client):
         mock_get.return_value.json.return_value = {"status": "SUCCESS"}
         res = client.get_job_status("j1")
         assert res["status"] == "SUCCESS"
+
+
+def test_export_html_report_success(client):
+    with patch("httpx.post") as mock_post:
+        mock_post.return_value.status_code = 200
+        mock_post.return_value.json.return_value = {"saved": True, "path": "C:/x/report.html"}
+        res = client.export_html_report({"feature_importances": []}, {"filename": "in.csv"}, "report.html", theme="dark")
+        assert res["saved"] is True
+        assert res["path"].endswith("report.html")
+
+
+def test_export_html_report_error(client):
+    with patch("httpx.post") as mock_post:
+        mock_post.side_effect = httpx.HTTPError("Boom")
+        with pytest.raises(RuntimeError, match="HTML export failed"):
+            client.export_html_report({"feature_importances": []}, {}, "report.html")
