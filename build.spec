@@ -11,9 +11,9 @@ pkg_path = os.path.abspath("advanced_catdap")
 datas = [
     # Include the entire package source to ensure re-imports works if needed
     # But usually PyInstaller collects code. We need non-code assets.
-    # Frontend app.py is needed for 'streamlit run' which takes a path.
+    # Frontend dash_app.py is bundled for runtime imports/resources.
     ('advanced_catdap', 'advanced_catdap'), # Bundle entire package as data if needed, or rely on analysis.
-    ('advanced_catdap/frontend/app.py', 'advanced_catdap/frontend'), 
+    ('advanced_catdap/frontend/dash_app.py', 'advanced_catdap/frontend'),
 ]
 
 binaries = []
