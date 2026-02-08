@@ -105,7 +105,8 @@ def test_download_html_report_returns_payload(monkeypatch):
         "generate_html_report",
         lambda *_args, **_kwargs: io.BytesIO(b"<html></html>"),
     )
-    payload = dash_mod.download_html_report(
+    monkeypatch.delenv("CATDAP_DESKTOP_MODE", raising=False)
+    payload, status = dash_mod.download_html_report(
         1,
         {"feature_importances": []},
         "job-123",
@@ -115,6 +116,7 @@ def test_download_html_report_returns_payload(monkeypatch):
         "dark",
     )
     assert payload is not dash.no_update
+    assert status is dash.no_update
 
 
 def test_download_html_report_with_custom_filename(monkeypatch):
@@ -123,7 +125,8 @@ def test_download_html_report_with_custom_filename(monkeypatch):
         "generate_html_report",
         lambda *_args, **_kwargs: io.BytesIO(b"<html></html>"),
     )
-    payload = dash_mod.download_html_report(
+    monkeypatch.delenv("CATDAP_DESKTOP_MODE", raising=False)
+    payload, status = dash_mod.download_html_report(
         1,
         {"feature_importances": []},
         None,
@@ -133,6 +136,47 @@ def test_download_html_report_with_custom_filename(monkeypatch):
         "dark",
     )
     assert payload is not dash.no_update
+    assert status is dash.no_update
+
+
+def test_download_html_report_desktop_mode_saved(monkeypatch):
+    monkeypatch.setenv("CATDAP_DESKTOP_MODE", "1")
+    monkeypatch.setattr(
+        dash_mod.client,
+        "export_html_report",
+        lambda **_kwargs: {"saved": True, "path": "C:/exports/out.html"},
+    )
+    payload, status = dash_mod.download_html_report(
+        1,
+        {"feature_importances": []},
+        None,
+        {"filename": "input.csv"},
+        "custom-report",
+        {"target_col": "target", "task_type": "auto"},
+        "dark",
+    )
+    assert payload is dash.no_update
+    assert "saved" in str(status).lower()
+
+
+def test_download_html_report_desktop_mode_cancelled(monkeypatch):
+    monkeypatch.setenv("CATDAP_DESKTOP_MODE", "1")
+    monkeypatch.setattr(
+        dash_mod.client,
+        "export_html_report",
+        lambda **_kwargs: {"saved": False, "reason": "cancelled"},
+    )
+    payload, status = dash_mod.download_html_report(
+        1,
+        {"feature_importances": []},
+        None,
+        {"filename": "input.csv"},
+        "custom-report",
+        {"target_col": "target", "task_type": "auto"},
+        "dark",
+    )
+    assert payload is dash.no_update
+    assert "cancelled" in str(status).lower()
 
 
 def test_update_deepdive_state_mode(monkeypatch):

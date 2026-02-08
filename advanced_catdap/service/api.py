@@ -1,6 +1,6 @@
 from fastapi import FastAPI, HTTPException, UploadFile, File, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
-from typing import List, Optional, Any
+from typing import List, Optional, Any, Callable
 import shutil
 import os
 import tempfile
@@ -10,7 +10,14 @@ import logging
 
 from advanced_catdap.service.dataset_manager import DatasetManager
 from advanced_catdap.service.job_manager import JobManager
-from advanced_catdap.service.schema import DatasetMetadata, AnalysisParams, AnalysisResult
+from advanced_catdap.service.schema import (
+    DatasetMetadata,
+    AnalysisParams,
+    AnalysisResult,
+    ExportHtmlRequest,
+    ExportHtmlResponse,
+)
+from advanced_catdap.service.exporter import ResultExporter
 
 app = FastAPI(title="AdvancedCATDAP API", version="0.1.0")
 logger = logging.getLogger(__name__)
@@ -59,6 +66,18 @@ app.add_middleware(
 # Dependencies (Simple Singleton pattern for MVP)
 dataset_manager = DatasetManager(storage_dir="data")
 job_manager = JobManager()
+desktop_export_hook: Optional[Callable[[str, bytes], Optional[str]]] = None
+
+
+def configure_desktop_export_hook(
+    hook: Optional[Callable[[str, bytes], Optional[str]]],
+) -> None:
+    global desktop_export_hook
+    desktop_export_hook = hook
+
+
+def _desktop_mode_enabled() -> bool:
+    return _env_bool("CATDAP_DESKTOP_MODE", False)
 
 @app.get("/")
 def read_root():
@@ -141,3 +160,33 @@ def cancel_job(job_id: str):
     except NotImplementedError as exc:
         raise HTTPException(status_code=501, detail=str(exc))
     return {"status": "cancelled"}
+
+
+@app.post("/export/html", response_model=ExportHtmlResponse)
+def export_html_report(req: ExportHtmlRequest):
+    if not _desktop_mode_enabled():
+        raise HTTPException(
+            status_code=403,
+            detail="Desktop mode is required for save-location export.",
+        )
+    if desktop_export_hook is None:
+        raise HTTPException(
+            status_code=503,
+            detail="Desktop export dialog is not available.",
+        )
+
+    try:
+        html_io = ResultExporter.generate_html_report(
+            req.result,
+            req.meta,
+            theme=req.theme,
+        )
+        saved_path = desktop_export_hook(req.filename, html_io.getvalue())
+        if not saved_path:
+            return ExportHtmlResponse(saved=False, reason="cancelled")
+        return ExportHtmlResponse(saved=True, path=str(saved_path))
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("Desktop HTML export failed")
+        raise HTTPException(status_code=500, detail=f"Export failed: {exc}")

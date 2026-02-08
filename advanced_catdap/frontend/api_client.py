@@ -52,3 +52,23 @@ class APIClient:
             return resp.json()
         except httpx.HTTPError as e:
             raise RuntimeError(f"Job status check failed: {e}")
+
+    def export_html_report(
+        self,
+        result: Dict[str, Any],
+        meta: Optional[Dict[str, Any]],
+        filename: str,
+        theme: str = "dark",
+    ) -> Dict[str, Any]:
+        payload = {
+            "result": result,
+            "meta": meta or {},
+            "filename": filename,
+            "theme": theme,
+        }
+        try:
+            resp = httpx.post(f"{self.base_url}/export/html", json=payload, timeout=60.0)
+            resp.raise_for_status()
+            return resp.json()
+        except httpx.HTTPError as e:
+            raise RuntimeError(f"HTML export failed: {e}")
