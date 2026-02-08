@@ -33,6 +33,7 @@ def test_analyzer_flow():
         result = service.run_analysis(df, params)
         
         assert result.mode == "classification"
+        assert result.task_type == "classification"
         assert len(result.feature_importances) == 1
         assert result.feature_importances[0].feature == "col1"
         assert "col1" in result.feature_details
