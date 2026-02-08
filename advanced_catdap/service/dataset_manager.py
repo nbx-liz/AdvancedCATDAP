@@ -94,33 +94,6 @@ class DatasetManager:
             
             metadata = self._build_metadata_from_parquet(
                 target_path=target_path,
-            # Analyze metadata using DuckDB
-            rel = con.from_parquet(str(target_path))
-            n_rows = rel.count('*').fetchone()[0]
-            
-            # Get column types
-            dtypes = rel.types
-            col_names = rel.columns
-            
-            cols_info = []
-            for i, col in enumerate(col_names):
-                # Calculate simple stats
-                quoted = self._quote_identifier(col)
-                stats = rel.aggregate(
-                    f"COUNT({quoted}) AS valid_count, APPROX_COUNT_DISTINCT({quoted}) AS approx_unique"
-                ).fetchone()
-                
-                valid_count, unique_approx = stats
-                missing_count = n_rows - valid_count
-                
-                cols_info.append(ColumnInfo(
-                    name=col,
-                    dtype=str(dtypes[i]),
-                    missing_count=missing_count,
-                    unique_approx=unique_approx
-                ))
-
-            metadata = DatasetMetadata(
                 dataset_id=dataset_id,
                 filename=original_filename or file_path.name,
             )
