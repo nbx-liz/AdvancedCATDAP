@@ -1,4 +1,3 @@
-import time
 from pathlib import Path
 
 import pandas as pd
@@ -9,24 +8,7 @@ from advanced_catdap.service import api as api_module
 from advanced_catdap.service.dataset_manager import DatasetManager
 from advanced_catdap.service.job_manager import JobManager
 from advanced_catdap.service.schema import AnalysisParams
-
-
-def _wait_for_terminal(client: TestClient, job_id: str, timeout_sec: int = 25, interval_sec: float = 0.5):
-    deadline = time.time() + timeout_sec
-    seen = set()
-    last = None
-    while time.time() < deadline:
-        resp = client.get(f"/jobs/{job_id}")
-        assert resp.status_code == 200
-        data = resp.json()
-        last = data
-        st = data.get("status")
-        if st:
-            seen.add(st)
-        if st in {"SUCCESS", "FAILURE"}:
-            return data, seen
-        time.sleep(interval_sec)
-    return last, seen
+from integration_helpers import wait_for_terminal_status
 
 
 @pytest.mark.integration
@@ -65,7 +47,7 @@ def test_api_jobs_integration_success_and_failure(tmp_path: Path, monkeypatch: p
     )
     assert resp_submit_ok.status_code == 202
     job_ok = resp_submit_ok.json()["job_id"]
-    final_ok, seen_ok = _wait_for_terminal(client, job_ok)
+    final_ok, seen_ok = wait_for_terminal_status(client, job_ok, timeout_s=25, interval_s=0.5)
     assert final_ok is not None
     assert final_ok["status"] == "SUCCESS"
     assert final_ok.get("result") is not None
@@ -92,7 +74,7 @@ def test_api_jobs_integration_success_and_failure(tmp_path: Path, monkeypatch: p
     )
     assert resp_submit_fail.status_code == 202
     job_fail = resp_submit_fail.json()["job_id"]
-    final_fail, _seen_fail = _wait_for_terminal(client, job_fail)
+    final_fail, _seen_fail = wait_for_terminal_status(client, job_fail, timeout_s=25, interval_s=0.5)
     assert final_fail is not None
     assert final_fail["status"] == "FAILURE"
     assert final_fail.get("error")
